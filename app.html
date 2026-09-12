@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nigeria PAYE computation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+
+/* ================= COLOR SYSTEM ================= */
+
+:root{
+--primary:#1E40AF;
+--primary-hover:#3B82F6;
+--accent:#10B981;
+--warning:#F59E0B;
+--danger:#EF4444;
+--bg-main:#F8FAFC;
+--bg-card:#FFFFFF;
+--bg-soft:#F1F5F9;
+--text-main:#1F2937;
+--text-muted:#6B7280;
+}
+
+/* ================= GLOBAL ================= */
+
+body{
+font-family:'Inter',sans-serif;
+margin:0;
+background:var(--bg-main);
+color:var(--text-main);
+}
+
+/* ================= NAVBAR ================= */
+
+.nav{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:16px 8%;
+background:var(--bg-card);
+box-shadow:0 2px 10px rgba(0,0,0,.05);
+}
+
+.logo{
+font-weight:700;
+font-size:18px;
+}
+
+.back{
+text-decoration:none;
+color:var(--primary);
+font-weight:600;
+}
+
+/* ================= DASHBOARD GRID ================= */
+
+.dashboard{
+display:grid;
+grid-template-columns:260px 1fr;
+min-height:100vh;
+}
+
+/* ================= SIDEBAR ================= */
+
+.sidebar{
+background:var(--bg-card);
+border-right:1px solid #e5e7eb;
+padding:20px;
+}
+
+.menu{
+margin-top:20px;
+}
+
+.menu div{
+padding:10px;
+border-radius:8px;
+cursor:pointer;
+margin-bottom:8px;
+transition:0.2s;
+}
+
+.menu div:hover{
+background:var(--bg-soft);
+}
+
+.menu .active{
+background:var(--primary);
+color:white;
+}
+
+/* ================= MAIN AREA ================= */
+
+.main{
+padding:30px;
+}
+
+.tab-content{
+display:none;
+}
+
+.tab-content.active{
+display:block;
+}
+
+.card{
+background:var(--bg-card);
+padding:24px;
+border-radius:16px;
+box-shadow:0 10px 25px rgba(0,0,0,.06);
+margin-bottom:20px;
+}
+
+/* ================= BUTTONS ================= */
+
+button{
+background:var(--primary);
+border:none;
+color:white;
+padding:12px 16px;
+border-radius:10px;
+cursor:pointer;
+margin-top:12px;
+transition:0.2s;
+font-weight:600;
+}
+
+button:hover{
+background:var(--primary-hover);
+}
+
+button.camera{
+background:var(--accent);
+}
+
+button.camera:hover{
+background:#059669;
+}
+
+button.template{
+background:#6366F1;
+}
+
+button.template:hover{
+background:#4F46E5;
+}
+
+/* ================= INPUT ================= */
+
+input{
+width:100%;
+padding:10px;
+margin-top:8px;
+border-radius:8px;
+border:1px solid #e5e7eb;
+font-size:14px;
+}
+
+/* ================= RESULT PANEL ================= */
+
+.result{
+margin-top:15px;
+background:var(--bg-soft);
+padding:14px;
+border-radius:10px;
+}
+
+/* ================= RENT RELIEF ================= */
+
+.relief{
+background:#eef6ff;
+padding:20px;
+border-radius:12px;
+margin-top:15px;
+}
+
+.relief h3{
+margin-top:0;
+}
+
+.form-group{
+margin-top:15px;
+}
+
+.checkbox{
+display:flex;
+align-items:center;
+gap:10px;
+margin-top:10px;
+}
+
+/* ================= ALERTS ================= */
+
+.success{
+background:#ECFDF5;
+color:#047857;
+padding:10px;
+border-radius:8px;
+}
+
+.warning{
+background:#FFFBEB;
+color:#92400E;
+padding:10px;
+border-radius:8px;
+}
+
+.error{
+background:#FEF2F2;
+color:#991B1B;
+padding:10px;
+border-radius:8px;
+}
+
+/* ================= TABLE ================= */
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:15px;
+}
+
+th{
+background:var(--bg-soft);
+text-align:left;
+}
+
+th,td{
+border:1px solid #e5e7eb;
+padding:8px;
+}
+
+tr:hover{
+background:#E2E8F0;
+}
+
+.template-note{
+margin-top:15px;
+color:var(--text-muted);
+font-size:13px;
+line-height:1.6;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="nav">
+
+<div class="logo">
+🇳🇬 PAYE computation
+</div>
+
+<a href="index.html" class="back">
+← Back to Home
+</a>
+
+</div>
+
+
+<div class="dashboard">
+
+
+<!-- SIDEBAR -->
+
+<div class="sidebar">
+
+<h3>Tools</h3>
+
+<div class="menu">
+
+<div class="active" onclick="openTab('computation',this)">
+Payslip computation
+</div>
+
+<div onclick="openTab('bulk',this)">
+Payroll Excel computation
+</div>
+
+</div>
+
+</div>
+
+
+<!-- MAIN -->
+
+<div class="main">
+
+
+<!-- ================= PAYSLIP computation ================= -->
+
+<div id="computation" class="tab-content active">
+
+<div class="card">
+
+<h3>📷 Payslip PAYE computation</h3>
+
+<p>
+Upload your payslip to compute your PAYE under Nigeria's current tax reform.
+</p>
+
+<input
+type="file"
+id="galleryInput"
+accept="image/*,.pdf"
+>
+
+<button
+class="camera"
+onclick="cameraInput.click()"
+>
+Open Camera
+</button>
+
+<input
+type="file"
+id="cameraInput"
+accept="image/*"
+capture="environment"
+style="display:none"
+>
+
+<div id="previewContainer"></div>
+
+<button onclick="processSelectedFile()">
+compute PAYE
+</button>
+
+<p id="loading"></p>
+
+</div>
+
+
+<!-- ================= RENT RELIEF ================= -->
+
+<div class="card relief">
+
+<h3>🏠 Rent Relief Declaration</h3>
+
+<div class="form-group checkbox">
+
+<input
+type="checkbox"
+id="rentCheck"
+>
+
+<label for="rentCheck">
+I confirm I pay rent
+</label>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Annual Rent
+</label>
+
+<input
+type="number"
+id="rentAmount"
+placeholder="Enter annual rent amount"
+>
+
+</div>
+
+
+<div class="form-group checkbox">
+
+<input
+type="checkbox"
+id="employerHouse"
+>
+
+<label for="employerHouse">
+Employer provides accommodation
+</label>
+
+</div>
+
+
+<button onclick="applyRentRelief()">
+Apply Rent Relief
+</button>
+
+</div>
+
+
+<div
+id="result"
+class="result"
+>
+</div>
+
+</div>
+
+
+<!-- ================= EXCEL PAYROLL computation ================= -->
+
+<div id="bulk" class="tab-content">
+
+<div class="card">
+
+<h3>Payroll Excel computation</h3>
+
+<p>
+Upload a payroll spreadsheet to compute PAYE for multiple employees under Nigeria's current tax reform.
+</p>
+
+<input
+type="file"
+id="excelFile"
+accept=".xlsx"
+>
+
+<button onclick="processExcel()">
+compute Payroll
+</button>
+
+
+<button
+class="template"
+onclick="downloadTemplate()"
+>
+Download Excel Template
+</button>
+
+
+<div class="template-note">
+
+<strong>
+Template Columns:
+</strong>
+<br>
+
+Employee Name
+<br>
+
+Gross Salary
+<br>
+
+Pension
+<br>
+
+NHF
+<br>
+
+NHIS
+<br>
+
+Other Deductions
+<br>
+
+Rent
+<br>
+
+Renting (Yes/No)
+<br>
+
+Employer Housing (Yes/No)
+<br><br>
+
+Rent relief is applied where the employee confirms renting and the employer does not provide accommodation.
+
+</div>
+
+
+<div id="excelPreview"></div>
+
+
+<button
+id="downloadBtn"
+onclick="downloadExcel()"
+style="display:none"
+>
+Download computed Excel
+</button>
+
+</div>
+
+</div>
+
+
+</div>
+
+</div>
+
+
+<script src="script.js"></script>
+
+
+<script>
+
+/* ================= TAB SWITCH ================= */
+
+function openTab(id,el){
+
+document.querySelectorAll(".tab-content").forEach(t=>{
+
+t.style.display="none";
+
+t.classList.remove("active");
+
+});
+
+
+document.getElementById(id).style.display="block";
+
+document.getElementById(id).classList.add("active");
+
+
+document.querySelectorAll(".menu div").forEach(m=>{
+
+m.classList.remove("active");
+
+});
+
+
+el.classList.add("active");
+
+}
+
+
+/* ================= DOWNLOAD TEMPLATE ================= */
+
+function downloadTemplate(){
+
+const headers = [
+
+"Employee Name",
+
+"Gross Salary",
+
+"Pension",
+
+"NHF",
+
+"NHIS",
+
+"Other Deductions",
+
+"Rent",
+
+"Renting",
+
+"Employer Housing"
+
+];
+
+
+const exampleRow = [
+
+"John Doe",
+
+350000,
+
+28000,
+
+8750,
+
+5000,
+
+0,
+
+120000,
+
+"Yes",
+
+"No"
+
+];
+
+
+const worksheet =
+XLSX.utils.aoa_to_sheet([
+headers,
+exampleRow
+]);
+
+
+const workbook =
+XLSX.utils.book_new();
+
+
+XLSX.utils.book_append_sheet(
+workbook,
+worksheet,
+"Payroll"
+);
+
+
+XLSX.writeFile(
+workbook,
+"PAYE_Payroll_Template.xlsx"
+);
+
+}
+
+</script>
+
+</body>
+</html>

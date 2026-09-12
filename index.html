@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+>
+
+<title>
+Nigeria PAYE computation
+</title>
+
+<link
+href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+rel="stylesheet"
+>
+
+<style>
+
+*{
+box-sizing:border-box;
+margin:0;
+padding:0;
+}
+
+body{
+
+font-family:'Inter',sans-serif;
+
+background:#f8fafc;
+
+color:#1f2937;
+
+line-height:1.6;
+
+}
+
+/* ================= NAVBAR ================= */
+
+.navbar{
+
+display:flex;
+
+justify-content:space-between;
+
+align-items:center;
+
+padding:18px 8%;
+
+background:white;
+
+box-shadow:0 2px 10px rgba(0,0,0,.05);
+
+position:sticky;
+
+top:0;
+
+z-index:100;
+
+}
+
+.logo{
+
+font-size:20px;
+
+font-weight:800;
+
+color:#1e40af;
+
+}
+
+.nav-btn{
+
+text-decoration:none;
+
+background:#1e40af;
+
+color:white;
+
+padding:10px 18px;
+
+border-radius:8px;
+
+font-weight:600;
+
+}
+
+.nav-btn:hover{
+
+background:#3b82f6;
+
+}
+
+/* ================= HERO ================= */
+
+.hero{
+
+padding:90px 8% 80px;
+
+text-align:center;
+
+background:
+
+linear-gradient(
+180deg,
+#eff6ff 0%,
+#f8fafc 100%
+);
+
+}
+
+.hero h1{
+
+font-size:48px;
+
+line-height:1.15;
+
+max-width:850px;
+
+margin:auto;
+
+color:#111827;
+
+}
+
+.hero h1 span{
+
+color:#1e40af;
+
+}
+
+.hero p{
+
+max-width:700px;
+
+margin:25px auto;
+
+font-size:18px;
+
+color:#6b7280;
+
+}
+
+.hero-btn{
+
+display:inline-block;
+
+margin-top:15px;
+
+padding:14px 26px;
+
+background:#1e40af;
+
+color:white;
+
+text-decoration:none;
+
+border-radius:10px;
+
+font-weight:700;
+
+}
+
+.hero-btn:hover{
+
+background:#3b82f6;
+
+}
+
+/* ================= FEATURES ================= */
+
+.features{
+
+padding:70px 8%;
+
+background:white;
+
+}
+
+.section-title{
+
+text-align:center;
+
+margin-bottom:45px;
+
+}
+
+.section-title h2{
+
+font-size:32px;
+
+margin-bottom:10px;
+
+}
+
+.section-title p{
+
+color:#6b7280;
+
+}
+
+/* ================= FEATURE GRID ================= */
+
+.feature-grid{
+
+display:grid;
+
+grid-template-columns:
+repeat(auto-fit,minmax(240px,1fr));
+
+gap:25px;
+
+max-width:1100px;
+
+margin:auto;
+
+}
+
+.feature{
+
+padding:28px;
+
+border-radius:14px;
+
+background:#f8fafc;
+
+border:1px solid #e5e7eb;
+
+transition:.2s;
+
+}
+
+.feature:hover{
+
+transform:translateY(-4px);
+
+box-shadow:
+0 10px 25px rgba(0,0,0,.07);
+
+}
+
+.icon{
+
+font-size:32px;
+
+margin-bottom:15px;
+
+}
+
+.feature h3{
+
+margin-bottom:10px;
+
+font-size:19px;
+
+}
+
+.feature p{
+
+color:#6b7280;
+
+font-size:14px;
+
+}
+
+/* ================= HOW IT WORKS ================= */
+
+.how{
+
+padding:70px 8%;
+
+background:#f8fafc;
+
+}
+
+.steps{
+
+display:grid;
+
+grid-template-columns:
+repeat(auto-fit,minmax(220px,1fr));
+
+gap:25px;
+
+max-width:1000px;
+
+margin:auto;
+
+}
+
+.step{
+
+text-align:center;
+
+padding:25px;
+
+}
+
+.number{
+
+width:45px;
+
+height:45px;
+
+border-radius:50%;
+
+background:#1e40af;
+
+color:white;
+
+display:flex;
+
+align-items:center;
+
+justify-content:center;
+
+margin:0 auto 15px;
+
+font-weight:700;
+
+}
+
+/* ================= CTA ================= */
+
+.cta{
+
+padding:70px 8%;
+
+background:#1e40af;
+
+color:white;
+
+text-align:center;
+
+}
+
+.cta h2{
+
+font-size:32px;
+
+margin-bottom:15px;
+
+}
+
+.cta p{
+
+max-width:650px;
+
+margin:0 auto 25px;
+
+opacity:.9;
+
+}
+
+.cta-btn{
+
+display:inline-block;
+
+background:white;
+
+color:#1e40af;
+
+padding:13px 25px;
+
+border-radius:9px;
+
+text-decoration:none;
+
+font-weight:700;
+
+}
+
+.cta-btn:hover{
+
+background:#eff6ff;
+
+}
+
+/* ================= FOOTER ================= */
+
+footer{
+
+background:#111827;
+
+color:#9ca3af;
+
+text-align:center;
+
+padding:25px 8%;
+
+font-size:13px;
+
+}
+
+/* ================= MOBILE ================= */
+
+@media(max-width:700px){
+
+.hero h1{
+
+font-size:36px;
+
+}
+
+.hero{
+
+padding:65px 6%;
+
+}
+
+.navbar{
+
+padding:15px 6%;
+
+}
+
+.features,
+.how{
+
+padding:55px 6%;
+
+}
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<!-- ================= NAVBAR ================= -->
+
+<nav class="navbar">
+
+<div class="logo">
+
+🇳🇬 Nigeria PAYE computation
+
+</div>
+
+<a
+href="app.html"
+class="nav-btn"
+>
+Launch computation
+</a>
+
+</nav>
+
+
+<!-- ================= HERO ================= -->
+
+<section class="hero">
+
+<h1>
+
+compute Your PAYE Under
+
+<span>
+Nigeria's Current Tax Reform
+</span>
+
+</h1>
+
+
+<p>
+
+compute your Personal Income Tax (PAYE)
+using the current Nigerian tax framework.
+Upload your payslip or payroll spreadsheet
+and get the applicable PAYE computation.
+
+</p>
+
+
+<a
+href="app.html"
+class="hero-btn"
+>
+
+compute Your PAYE
+
+</a>
+
+</section>
+
+
+<!-- ================= FEATURES ================= -->
+
+<section class="features">
+
+<div class="section-title">
+
+<h2>
+What You Can compute
+</h2>
+
+<p>
+Simple tools for PAYE computation under the current tax reform.
+</p>
+
+</div>
+
+
+<div class="feature-grid">
+
+
+<!-- PAYSLIP -->
+
+<div class="feature">
+
+<div class="icon">
+📷
+</div>
+
+<h3>
+Payslip PAYE computation
+</h3>
+
+<p>
+
+Upload or capture a payslip.
+The system extracts the relevant
+salary and deduction information
+and computes PAYE under the
+current tax reform.
+
+</p>
+
+</div>
+
+
+<!-- EXCEL -->
+
+<div class="feature">
+
+<div class="icon">
+📊
+</div>
+
+<h3>
+Payroll Excel computation
+</h3>
+
+<p>
+
+Upload a payroll spreadsheet and
+compute PAYE for multiple
+employees using the current
+tax framework.
+
+</p>
+
+</div>
+
+
+<!-- RENT -->
+
+<div class="feature">
+
+<div class="icon">
+🏠
+</div>
+
+<h3>
+Rent Relief computation
+</h3>
+
+<p>
+
+Declare annual rent and compute
+the applicable rent relief under
+the current Nigerian tax framework.
+
+</p>
+
+</div>
+
+
+<!-- CURRENT TAX -->
+
+<div class="feature">
+
+<div class="icon">
+🇳🇬
+</div>
+
+<h3>
+Current Tax Reform
+
+</h3>
+
+<p>
+
+computations use the current
+PAYE tax bands and applicable
+allowable deductions under
+Nigeria's tax reform framework.
+
+</p>
+
+</div>
+
+
+</div>
+
+</section>
+
+
+<!-- ================= HOW IT WORKS ================= -->
+
+<section class="how">
+
+<div class="section-title">
+
+<h2>
+How It Works
+</h2>
+
+<p>
+compute your PAYE in three simple steps.
+</p>
+
+</div>
+
+
+<div class="steps">
+
+
+<div class="step">
+
+<div class="number">
+1
+</div>
+
+<h3>
+Upload Your Payslip
+</h3>
+
+<p>
+
+Upload an image or PDF of your
+payslip, or use your device camera.
+
+</p>
+
+</div>
+
+
+<div class="step">
+
+<div class="number">
+2
+</div>
+
+<h3>
+Process Your Information
+</h3>
+
+<p>
+
+The system extracts your gross
+salary and applicable deductions.
+
+</p>
+
+</div>
+
+
+<div class="step">
+
+<div class="number">
+3
+</div>
+
+<h3>
+View Your PAYE
+</h3>
+
+<p>
+
+See your PAYE computed under
+Nigeria's current tax reform.
+
+</p>
+
+</div>
+
+
+</div>
+
+</section>
+
+
+<!-- ================= CTA ================= -->
+
+<section class="cta">
+
+<h2>
+
+Ready to compute Your PAYE?
+
+</h2>
+
+<p>
+
+Use the computation to determine
+your PAYE under Nigeria's current
+tax reform.
+
+</p>
+
+<a
+href="app.html"
+class="cta-btn"
+>
+
+Launch PAYE computation
+
+</a>
+
+</section>
+
+
+<!-- ================= FOOTER ================= -->
+
+<footer>
+
+PAYE computation • Payroll Processing • Rent Relief
+
+<br>
+
+© 2026 Nigeria PAYE computation
+
+</footer>
+
+
+</body>
+
+</html>
