@@ -8,11 +8,10 @@
 <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
 <style>
-
-/* ================= COLOR SYSTEM ================= */
 
 :root{
 --primary:#1E40AF;
@@ -27,7 +26,9 @@
 --text-muted:#6B7280;
 }
 
-/* ================= GLOBAL ================= */
+*{
+box-sizing:border-box;
+}
 
 body{
 font-family:'Inter',sans-serif;
@@ -35,8 +36,6 @@ margin:0;
 background:var(--bg-main);
 color:var(--text-main);
 }
-
-/* ================= NAVBAR ================= */
 
 .nav{
 display:flex;
@@ -58,15 +57,11 @@ color:var(--primary);
 font-weight:600;
 }
 
-/* ================= DASHBOARD GRID ================= */
-
 .dashboard{
 display:grid;
 grid-template-columns:260px 1fr;
 min-height:100vh;
 }
-
-/* ================= SIDEBAR ================= */
 
 .sidebar{
 background:var(--bg-card);
@@ -83,7 +78,7 @@ padding:10px;
 border-radius:8px;
 cursor:pointer;
 margin-bottom:8px;
-transition:0.2s;
+transition:.2s;
 }
 
 .menu div:hover{
@@ -94,8 +89,6 @@ background:var(--bg-soft);
 background:var(--primary);
 color:white;
 }
-
-/* ================= MAIN AREA ================= */
 
 .main{
 padding:30px;
@@ -117,8 +110,6 @@ box-shadow:0 10px 25px rgba(0,0,0,.06);
 margin-bottom:20px;
 }
 
-/* ================= BUTTONS ================= */
-
 button{
 background:var(--primary);
 border:none;
@@ -127,7 +118,7 @@ padding:12px 16px;
 border-radius:10px;
 cursor:pointer;
 margin-top:12px;
-transition:0.2s;
+transition:.2s;
 font-weight:600;
 }
 
@@ -151,7 +142,13 @@ button.template:hover{
 background:#4F46E5;
 }
 
-/* ================= INPUT ================= */
+button.danger{
+background:#DC2626;
+}
+
+button.danger:hover{
+background:#B91C1C;
+}
 
 input{
 width:100%;
@@ -162,16 +159,12 @@ border:1px solid #e5e7eb;
 font-size:14px;
 }
 
-/* ================= RESULT PANEL ================= */
-
 .result{
 margin-top:15px;
 background:var(--bg-soft);
 padding:14px;
 border-radius:10px;
 }
-
-/* ================= RENT RELIEF ================= */
 
 .relief{
 background:#eef6ff;
@@ -195,7 +188,10 @@ gap:10px;
 margin-top:10px;
 }
 
-/* ================= ALERTS ================= */
+.checkbox input{
+width:auto;
+margin-top:0;
+}
 
 .success{
 background:#ECFDF5;
@@ -217,8 +213,6 @@ color:#991B1B;
 padding:10px;
 border-radius:8px;
 }
-
-/* ================= TABLE ================= */
 
 table{
 width:100%;
@@ -247,10 +241,219 @@ font-size:13px;
 line-height:1.6;
 }
 
+/* ================= CAMERA SCANNER ================= */
+
+.camera-modal{
+display:none;
+position:fixed;
+inset:0;
+background:#000;
+z-index:9999;
+overflow:hidden;
+}
+
+.camera-modal.active{
+display:flex;
+flex-direction:column;
+}
+
+.camera-header{
+height:60px;
+background:rgba(0,0,0,.75);
+color:white;
+display:flex;
+align-items:center;
+justify-content:space-between;
+padding:0 18px;
+z-index:2;
+}
+
+.camera-title{
+font-size:16px;
+font-weight:600;
+}
+
+.camera-close{
+background:#DC2626;
+padding:8px 14px;
+margin:0;
+border-radius:8px;
+}
+
+.camera-view{
+position:relative;
+flex:1;
+display:flex;
+align-items:center;
+justify-content:center;
+overflow:hidden;
+background:#000;
+}
+
+#cameraVideo{
+width:100%;
+height:100%;
+object-fit:cover;
+display:block;
+}
+
+.scanner-overlay{
+position:absolute;
+inset:0;
+pointer-events:none;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.scanner-box{
+width:88%;
+max-width:700px;
+height:58%;
+border:3px solid #10B981;
+border-radius:12px;
+box-shadow:
+0 0 0 9999px rgba(0,0,0,.40),
+0 0 20px rgba(16,185,129,.8);
+position:relative;
+}
+
+.scanner-corners{
+position:absolute;
+inset:0;
+border-radius:12px;
+}
+
+.scanner-message{
+position:absolute;
+bottom:-55px;
+left:50%;
+transform:translateX(-50%);
+width:max-content;
+max-width:90vw;
+background:rgba(0,0,0,.75);
+color:white;
+padding:9px 15px;
+border-radius:20px;
+font-size:13px;
+text-align:center;
+}
+
+.camera-footer{
+background:rgba(0,0,0,.85);
+padding:15px;
+display:flex;
+justify-content:center;
+gap:12px;
+z-index:2;
+}
+
+.capture-button{
+width:68px;
+height:68px;
+border-radius:50%;
+background:white;
+border:6px solid #10B981;
+padding:0;
+margin:0;
+box-shadow:0 0 15px rgba(255,255,255,.4);
+}
+
+.capture-button:hover{
+background:#f3f4f6;
+}
+
+.camera-status{
+position:absolute;
+top:75px;
+left:50%;
+transform:translateX(-50%);
+background:rgba(0,0,0,.7);
+color:white;
+padding:8px 15px;
+border-radius:20px;
+font-size:13px;
+z-index:3;
+display:none;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media(max-width:768px){
+
+.nav{
+padding:14px 5%;
+}
+
+.logo{
+font-size:16px;
+}
+
+.dashboard{
+grid-template-columns:1fr;
+}
+
+.sidebar{
+border-right:none;
+border-bottom:1px solid #e5e7eb;
+padding:12px;
+}
+
+.sidebar h3{
+display:none;
+}
+
+.menu{
+margin-top:0;
+display:flex;
+gap:8px;
+}
+
+.menu div{
+flex:1;
+margin-bottom:0;
+text-align:center;
+font-size:13px;
+}
+
+.main{
+padding:15px;
+}
+
+.card{
+padding:18px;
+}
+
+.scanner-box{
+width:92%;
+height:55%;
+}
+
+.scanner-message{
+font-size:12px;
+}
+
+}
+
+footer{
+background:#111827;
+color:#9ca3af;
+text-align:center;
+padding:25px 8%;
+font-size:13px;
+margin-top:30px;
+}
+
+footer strong{
+color:white;
+}
+
 </style>
 </head>
 
 <body>
+
+<!-- ================= NAVBAR ================= -->
 
 <div class="nav">
 
@@ -267,8 +470,7 @@ line-height:1.6;
 
 <div class="dashboard">
 
-
-<!-- SIDEBAR -->
+<!-- ================= SIDEBAR ================= -->
 
 <div class="sidebar">
 
@@ -289,12 +491,12 @@ Payroll Excel computation
 </div>
 
 
-<!-- MAIN -->
+<!-- ================= MAIN ================= -->
 
 <div class="main">
 
 
-<!-- ================= PAYSLIP computation ================= -->
+<!-- ================= PAYSLIP ================= -->
 
 <div id="computation" class="tab-content active">
 
@@ -303,8 +505,11 @@ Payroll Excel computation
 <h3>📷 Payslip PAYE computation</h3>
 
 <p>
-Upload your payslip to compute your PAYE under Nigeria's current tax reform.
+Upload your payslip or scan it directly with your phone camera to compute PAYE under Nigeria's current tax reform.
 </p>
+
+
+<!-- Gallery / PDF -->
 
 <input
 type="file"
@@ -312,12 +517,18 @@ id="galleryInput"
 accept="image/*,.pdf"
 >
 
+
+<!-- NEW LIVE CAMERA BUTTON -->
+
 <button
 class="camera"
-onclick="cameraInput.click()"
+onclick="openCameraScanner()"
 >
-Open Camera
+📷 Scan Payslip with Camera
 </button>
+
+
+<!-- Hidden camera compatibility input -->
 
 <input
 type="file"
@@ -327,11 +538,16 @@ capture="environment"
 style="display:none"
 >
 
+
+<!-- Camera Preview Result -->
+
 <div id="previewContainer"></div>
 
+
 <button onclick="processSelectedFile()">
-compute PAYE
+Compute PAYE
 </button>
+
 
 <p id="loading"></p>
 
@@ -403,7 +619,7 @@ class="result"
 </div>
 
 
-<!-- ================= EXCEL PAYROLL computation ================= -->
+<!-- ================= EXCEL PAYROLL ================= -->
 
 <div id="bulk" class="tab-content">
 
@@ -415,14 +631,16 @@ class="result"
 Upload a payroll spreadsheet to compute PAYE for multiple employees under Nigeria's current tax reform.
 </p>
 
+
 <input
 type="file"
 id="excelFile"
 accept=".xlsx"
 >
 
+
 <button onclick="processExcel()">
-compute Payroll
+Compute Payroll
 </button>
 
 
@@ -439,6 +657,7 @@ Download Excel Template
 <strong>
 Template Columns:
 </strong>
+
 <br>
 
 Employee Name
@@ -456,19 +675,16 @@ NHF
 NHIS
 <br>
 
-Other Deductions
-<br>
-
 Rent
 <br>
 
-Renting (Yes/No)
-<br>
-
 Employer Housing (Yes/No)
+
 <br><br>
 
-Rent relief is applied where the employee confirms renting and the employer does not provide accommodation.
+<strong>Rent relief:</strong>
+
+If Rent is greater than zero and the employer does not provide accommodation, the system automatically applies the applicable rent relief.
 
 </div>
 
@@ -488,10 +704,107 @@ Download computed Excel
 
 </div>
 
+</div>
+
+</div>
+
+
+<!-- ================= CAMERA SCANNER ================= -->
+
+<div
+id="cameraModal"
+class="camera-modal"
+>
+
+<div class="camera-header">
+
+<div class="camera-title">
+📷 Payslip Camera Scanner
+</div>
+
+<button
+class="camera-close"
+onclick="closeCameraScanner()"
+>
+Close
+</button>
+
+</div>
+
+
+<div class="camera-view">
+
+<video
+id="cameraVideo"
+autoplay
+playsinline
+muted
+></video>
+
+
+<div
+id="cameraStatus"
+class="camera-status"
+>
+Preparing camera...
+</div>
+
+
+<div class="scanner-overlay">
+
+<div class="scanner-box">
+
+<div class="scanner-corners"></div>
+
+<div class="scanner-message">
+Position the payslip inside the box and keep it steady
+</div>
+
+</div>
 
 </div>
 
 </div>
+
+
+<div class="camera-footer">
+
+<button
+class="capture-button"
+onclick="capturePayslipImage()"
+aria-label="Capture payslip"
+title="Capture payslip"
+>
+</button>
+
+</div>
+
+</div>
+
+
+<!-- Hidden canvas used by JavaScript to capture the high-resolution frame -->
+
+<canvas
+id="cameraCanvas"
+style="display:none"
+></canvas>
+
+
+<!-- ================= FOOTER ================= -->
+
+<footer>
+
+PAYE Calculation • Payroll Processing • Rent Relief
+
+<br>
+
+© 2026 Nigeria PAYE Calculator
+
+<br><br>
+
+Built by <strong>Mudris Tech Solution</strong>
+
+</footer>
 
 
 <script src="script.js"></script>
@@ -506,14 +819,11 @@ function openTab(id,el){
 document.querySelectorAll(".tab-content").forEach(t=>{
 
 t.style.display="none";
-
 t.classList.remove("active");
 
 });
 
-
 document.getElementById(id).style.display="block";
-
 document.getElementById(id).classList.add("active");
 
 
@@ -522,7 +832,6 @@ document.querySelectorAll(".menu div").forEach(m=>{
 m.classList.remove("active");
 
 });
-
 
 el.classList.add("active");
 
@@ -536,21 +845,11 @@ function downloadTemplate(){
 const headers = [
 
 "Employee Name",
-
 "Gross Salary",
-
 "Pension",
-
 "NHF",
-
 "NHIS",
-
-"Other Deductions",
-
 "Rent",
-
-"Renting",
-
 "Employer Housing"
 
 ];
@@ -559,21 +858,11 @@ const headers = [
 const exampleRow = [
 
 "John Doe",
-
 350000,
-
 28000,
-
 8750,
-
 5000,
-
-0,
-
 120000,
-
-"Yes",
-
 "No"
 
 ];
