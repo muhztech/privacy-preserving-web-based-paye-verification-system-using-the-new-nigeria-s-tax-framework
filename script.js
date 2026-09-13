@@ -167,40 +167,52 @@ async function initializeOCR() {
         loading.textContent = "Preparing OCR engine...";
     }
 
-    tesseractWorker = Tesseract.createWorker({
+    /*
+     * Tesseract.js 4.1.1:
+     *
+     * createWorker() is asynchronous and returns
+     * the ready worker.
+     *
+     * DO NOT use:
+     * worker.load()
+     * worker.loadLanguage()
+     * worker.initialize()
+     */
 
-        logger: function (message) {
+    tesseractWorker = await Tesseract.createWorker(
+        "eng",
+        1,
+        {
+            logger: function (message) {
 
-            if (!message) return;
-
-            if (message.status === "recognizing text") {
-
-                const progress =
-                    Math.round((message.progress || 0) * 100);
-
-                if (loading) {
-                    loading.textContent =
-                        `Reading payslip... ${progress}%`;
+                if (!message) {
+                    return;
                 }
 
-            } else if (message.status) {
+                if (message.status === "recognizing text") {
 
-                if (loading) {
-                    loading.textContent =
-                        `OCR: ${message.status}`;
+                    const progress =
+                        Math.round(
+                            (message.progress || 0) * 100
+                        );
+
+                    if (loading) {
+                        loading.textContent =
+                            `Reading payslip... ${progress}%`;
+                    }
+
+                } else if (message.status) {
+
+                    if (loading) {
+                        loading.textContent =
+                            `OCR: ${message.status}`;
+                    }
+
                 }
 
             }
-
         }
-
-    });
-
-    await tesseractWorker.load();
-
-    await tesseractWorker.loadLanguage("eng");
-
-    await tesseractWorker.initialize("eng");
+    );
 
     await tesseractWorker.setParameters({
 
@@ -212,9 +224,13 @@ async function initializeOCR() {
 
     workerReady = true;
 
+    if (loading) {
+        loading.textContent =
+            "OCR engine ready.";
+    }
+
     return tesseractWorker;
 }
-
 
 /* =========================================================
    IMAGE PREPROCESSING
