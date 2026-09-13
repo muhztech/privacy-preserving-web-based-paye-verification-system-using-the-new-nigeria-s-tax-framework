@@ -1,686 +1,2693 @@
-/* ================= GLOBAL ================= */
+/* =========================================================
+   NIGERIA PAYE COMPUTATION SYSTEM
+   Camera OCR + Payslip OCR + Excel Payroll
+   Built by Mudris Tech Solution
+   ========================================================= */
 
-let selectedFile = null;
-let processedData = [];
-let lastGross = 0;
-let lastPension = 0;
-let lastNHF = 0;
-let lastNHIS = 0;
 
-const previewContainer = document.getElementById("previewContainer");
-const loading = document.getElementById("loading");
-const result = document.getElementById("result");
-
-/* ================= TAB SWITCH ================= */
-
-function openTab(id, el) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-
-  el.classList.add("active");
-  document.getElementById(id).classList.add("active");
-}
-
-/* ================= TAX CONFIG ================= */
+/* =========================================================
+   TAX CONFIGURATION
+   Nigeria Tax Act / Current Tax Reform
+   ========================================================= */
 
 const TAX_FREE = 800000;
 
 const TAX_BANDS = [
-  { limit: 2200000, rate: 0.15 },
-  { limit: 6800000, rate: 0.18 },
-  { limit: 4000000, rate: 0.21 },
-  { limit: 12000000, rate: 0.23 },
-  { limit: Infinity, rate: 0.25 }
+    { limit: 2200000, rate: 0.15 },
+    { limit: 6800000, rate: 0.18 },
+    { limit: 4000000, rate: 0.21 },
+    { limit: 12000000, rate: 0.23 },
+    { limit: Infinity, rate: 0.25 }
 ];
 
-/* ================= TAX ENGINE ================= */
 
-function computePAYE(monthlyGross, pension = 0, nhf = 0, nhis = 0, other = 0) {
+/* =========================================================
+   GLOBAL VARIABLES
+   ========================================================= */
 
-  if (!monthlyGross) return 0;
+let selectedFile = null;
+let capturedCameraBlob = null;
 
-  const annualIncome = monthlyGross * 12;
+let cameraStream = null;
 
-  const annualDeductions =
-    (pension + nhf + nhis + other) * 12;
+let tesseractWorker = null;
+let workerReady = false;
 
-  let taxable =
-    Math.max(
-      annualIncome -
-      annualDeductions -
-      TAX_FREE,
-      0
-    );
+let processedData = [];
 
-  let tax = 0;
 
-  for (let band of TAX_BANDS) {
+/* =========================================================
+   BASIC HELPERS
+   ========================================================= */
 
-    if (taxable <= 0) break;
+function money(value) {
 
-    let amount =
-      Math.min(
-        band.limit,
-        taxable
-      );
+    const number = Number(value) || 0;
 
-    tax +=
-      amount * band.rate;
-
-    taxable -= amount;
-  }
-
-  return tax / 12;
+    return new Intl.NumberFormat("en-NG", {
+        style: "currency",
+        currency: "NGN",
+        maximumFractionDigits: 2
+    }).format(number);
 }
 
-/* ================= FILE INPUT ================= */
 
-galleryInput.onchange = e => {
+function numberValue(value) {
 
-  selectedFile = e.target.files[0];
-
-  preview(selectedFile);
-};
-
-cameraInput.onchange = e => {
-
-  selectedFile = e.target.files[0];
-
-  preview(selectedFile);
-};
-
-/* ================= IMAGE PREVIEW ================= */
-
-function preview(file) {
-
-  if (file.type === "application/pdf") {
-
-    previewContainer.innerHTML =
-      `<p>📄 PDF uploaded: ${file.name}</p>`;
-
-    return;
-  }
-
-  const reader = new FileReader();
-
-  reader.onload = e => {
-
-    previewContainer.innerHTML =
-      `<img src="${e.target.result}" style="max-width:100%;border-radius:8px;">`;
-
-  };
-
-  reader.readAsDataURL(file);
-}
-
-/* ================= OCR PROCESS ================= */
-
-async function processSelectedFile() {
-
-  if (!selectedFile) {
-
-    alert("Upload payslip first");
-
-    return;
-  }
-
-  loading.innerText =
-    "Reading payslip...";
-
-  let imageData;
-
-  if (selectedFile.type === "application/pdf") {
-
-    imageData =
-      await convertPDFtoImage(selectedFile);
-
-  } else {
-
-    imageData = selectedFile;
-  }
-
-  Tesseract.recognize(
-    imageData,
-    'eng',
-    {
-      logger: m => console.log(m)
-    }
-  )
-
-  .then(({ data: { text } }) => {
-
-    loading.innerText = "";
-
-    const clean =
-      normalizeText(text);
-
-    const gross =
-      extractAmount(
-        clean,
-        [
-          "GROSS PAY",
-          "GROSS SALARY",
-          "TOTAL PAY",
-          "TOTAL EARNINGS"
-        ]
-      );
-
-    const pension =
-      extractAmount(
-        clean,
-        [
-          "PENSION",
-          "PFA",
-          "RETIREMENT"
-        ]
-      ) || 0;
-
-    const nhf =
-      extractAmount(
-        clean,
-        [
-          "NHF",
-          "HOUSING FUND"
-        ]
-      ) || 0;
-
-    const nhis =
-      extractAmount(
-        clean,
-        [
-          "NHIS",
-          "HEALTH INSURANCE"
-        ]
-      ) || 0;
-
-    if (!gross) {
-
-      result.innerHTML =
-        "⚠ Gross Pay not detected from payslip.";
-
-      return;
+    if (value === null || value === undefined) {
+        return 0;
     }
 
-    lastGross = gross;
-    lastPension = pension;
-    lastNHF = nhf;
-    lastNHIS = nhis;
+    if (typeof value === "number") {
+        return isNaN(value) ? 0 : value;
+    }
 
-    const newPAYE =
-      computePAYE(
-        gross,
-        pension,
-        nhf,
-        nhis
-      );
+    let text = String(value)
+        .replace(/₦/gi, "")
+        .replace(/NGN/gi, "")
+        .replace(/,/g, "")
+        .replace(/\s/g, "")
+        .trim();
 
-    result.innerHTML = `
+    const number = parseFloat(text);
 
-      <b>Gross:</b>
-      ₦${gross.toLocaleString()}<br>
-
-      <b>Pension:</b>
-      ₦${pension.toLocaleString()}<br>
-
-      <b>NHF:</b>
-      ₦${nhf.toLocaleString()}<br>
-
-      <b>NHIS:</b>
-      ₦${nhis.toLocaleString()}
-
-      <hr>
-
-      <b>PAYE Under Current Tax Reform:</b>
-      ₦${newPAYE.toLocaleString()}
-
-    `;
-
-  })
-
-  .catch(error => {
-
-    console.error(error);
-
-    loading.innerText = "";
-
-    result.innerHTML =
-      "⚠ Unable to process payslip. Please try again.";
-
-  });
+    return isNaN(number) ? 0 : number;
 }
 
-/* ================= RENT RELIEF ================= */
-
-function applyRentRelief() {
-
-  const rentChecked =
-    document.getElementById("rentCheck").checked;
-
-  const employerHouse =
-    document.getElementById("employerHouse").checked;
-
-  const rentAmount =
-    Number(
-      document.getElementById("rentAmount").value
-    );
-
-  if (!lastGross) {
-
-    alert("Process a payslip first.");
-
-    return;
-  }
-
-  if (employerHouse) {
-
-    result.innerHTML += `
-
-      <hr>
-
-      <span class="warning">
-
-      ⚠ Rent relief not allowed because employer provides accommodation.
-
-      </span>
-
-    `;
-
-    return;
-  }
-
-  if (!rentChecked) {
-
-    result.innerHTML += `
-
-      <hr>
-
-      <span class="warning">
-
-      Employee did not declare rent. No relief applied.
-
-      </span>
-
-    `;
-
-    return;
-  }
-
-  const maxRelief = 500000;
-
-  const relief =
-    Math.min(
-      rentAmount * 0.20,
-      maxRelief
-    );
-
-  const reliefMonthly =
-    relief / 12;
-
-  const newPAYE =
-    computePAYE(
-      lastGross,
-      lastPension,
-      lastNHF,
-      lastNHIS,
-      reliefMonthly
-    );
-
-  result.innerHTML += `
-
-    <hr>
-
-    <b>Rent Relief Applied</b><br>
-
-    Annual Rent Declared:
-    ₦${rentAmount.toLocaleString()}<br>
-
-    Allowed Relief:
-    ₦${relief.toLocaleString()}<br>
-
-    <hr>
-
-    <b>
-    PAYE Under Current Tax Reform After Rent Relief:
-    </b>
-
-    ₦${newPAYE.toLocaleString()}<br>
-
-  `;
-}
-
-/* ================= PDF OCR ================= */
-
-async function convertPDFtoImage(file) {
-
-  const pdfData =
-    await file.arrayBuffer();
-
-  const pdf =
-    await pdfjsLib
-      .getDocument({
-        data: pdfData
-      })
-      .promise;
-
-  const page =
-    await pdf.getPage(1);
-
-  const viewport =
-    page.getViewport({
-      scale: 1.5
-    });
-
-  const canvas =
-    document.createElement("canvas");
-
-  const context =
-    canvas.getContext("2d");
-
-  canvas.width =
-    viewport.width;
-
-  canvas.height =
-    viewport.height;
-
-  await page.render({
-
-    canvasContext: context,
-
-    viewport: viewport
-
-  }).promise;
-
-  return new Promise(resolve => {
-
-    canvas.toBlob(
-      blob => {
-
-        const img =
-          new Image();
-
-        img.onload =
-          () => resolve(img);
-
-        img.src =
-          URL.createObjectURL(blob);
-
-      },
-      "image/jpeg",
-      0.7
-    );
-
-  });
-}
-
-/* ================= TEXT NORMALIZATION ================= */
 
 function normalizeText(text) {
 
-  return text
+    return String(text || "")
+        .replace(/\r/g, "\n")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n")
+        .trim();
 
-    .toUpperCase()
-
-    .replace(/₦/g, "")
-
-    .replace(/,/g, "")
-
-    .replace(/\s+/g, " ")
-
-    .trim();
 }
 
-/* ================= AMOUNT EXTRACTOR ================= */
 
-function extractAmount(text, keywords) {
+/* =========================================================
+   PAYE CALCULATION
+   ========================================================= */
 
-  for (let key of keywords) {
+function computePAYE(
+    monthlyGross,
+    pension = 0,
+    nhf = 0,
+    nhis = 0,
+    rentRelief = 0
+) {
 
-    const regex =
-      new RegExp(
-        key +
-        "\\s*[:\\-]?\\s*([0-9]+(?:\\.[0-9]{1,2})?)"
-      );
+    monthlyGross = numberValue(monthlyGross);
+    pension = numberValue(pension);
+    nhf = numberValue(nhf);
+    nhis = numberValue(nhis);
+    rentRelief = numberValue(rentRelief);
 
-    const match =
-      text.match(regex);
+    const annualGross = monthlyGross * 12;
 
-    if (match) {
+    const annualPension = pension * 12;
+    const annualNHF = nhf * 12;
+    const annualNHIS = nhis * 12;
 
-      const value =
-        Number(match[1]);
+    const annualRentRelief = rentRelief * 12;
 
-      if (!isNaN(value)) {
+    let taxableIncome =
+        annualGross
+        - annualPension
+        - annualNHF
+        - annualNHIS
+        - annualRentRelief
+        - TAX_FREE;
 
-        return value;
-      }
+    taxableIncome = Math.max(0, taxableIncome);
+
+    let remaining = taxableIncome;
+    let annualTax = 0;
+
+    for (const band of TAX_BANDS) {
+
+        if (remaining <= 0) {
+            break;
+        }
+
+        const amountInBand = Math.min(
+            remaining,
+            band.limit
+        );
+
+        annualTax += amountInBand * band.rate;
+
+        remaining -= amountInBand;
     }
-  }
 
-  return null;
+    return annualTax / 12;
 }
 
-/* ================= EXCEL PROCESS ================= */
 
-function processExcel() {
+/* =========================================================
+   TESSERACT WORKER
+   ========================================================= */
 
-  const file =
-    excelFile.files[0];
+async function initializeOCR() {
 
-  if (!file) {
+    if (workerReady && tesseractWorker) {
+        return tesseractWorker;
+    }
 
-    alert("Upload Excel file");
+    if (!window.Tesseract) {
+        throw new Error(
+            "Tesseract OCR library could not be loaded."
+        );
+    }
 
-    return;
-  }
+    const loading = document.getElementById("loading");
 
-  const reader =
-    new FileReader();
+    if (loading) {
+        loading.textContent = "Preparing OCR engine...";
+    }
 
-  reader.onload = e => {
+    tesseractWorker = Tesseract.createWorker({
 
-    const wb =
-      XLSX.read(
-        new Uint8Array(e.target.result),
-        {
-          type: 'array'
+        logger: function (message) {
+
+            if (!message) return;
+
+            if (message.status === "recognizing text") {
+
+                const progress =
+                    Math.round((message.progress || 0) * 100);
+
+                if (loading) {
+                    loading.textContent =
+                        `Reading payslip... ${progress}%`;
+                }
+
+            } else if (message.status) {
+
+                if (loading) {
+                    loading.textContent =
+                        `OCR: ${message.status}`;
+                }
+
+            }
+
         }
-      );
-
-    const sheet =
-      wb.Sheets[
-        wb.SheetNames[0]
-      ];
-
-    const json =
-      XLSX.utils.sheet_to_json(sheet);
-
-    processedData =
-      json.map(r => {
-
-        const gross =
-          Number(
-            r["Gross Salary"]
-          ) || 0;
-
-        const pension =
-          Number(
-            r["Pension"]
-          ) || 0;
-
-        const nhf =
-          Number(
-            r["NHF"]
-          ) || 0;
-
-        const nhis =
-          Number(
-            r["NHIS"]
-          ) || 0;
-
-        const other =
-          Number(
-            r["Other Deductions"]
-          ) || 0;
-
-        const rent =
-          Number(
-            r["Rent"]
-          ) || 0;
-
-        const rentingValue =
-          r["Renting"] ??
-          r["Renting (Yes/No)"] ??
-          "";
-
-        const renting =
-          String(
-            rentingValue
-          )
-          .toLowerCase()
-          .trim() === "yes" ||
-
-          String(
-            rentingValue
-          )
-          .toLowerCase()
-          .trim() === "true" ||
-
-          String(
-            rentingValue
-          ).trim() === "1";
-
-        const employerHouse =
-          String(
-            r["Employer Housing"] || ""
-          )
-          .toLowerCase()
-          .trim() === "yes";
-
-        let reliefMonthly = 0;
-
-        if (
-          renting &&
-          !employerHouse &&
-          rent > 0
-        ) {
-
-          const maxRelief = 500000;
-
-          const relief =
-            Math.min(
-              rent * 0.20,
-              maxRelief
-            );
-
-          reliefMonthly =
-            relief / 12;
-        }
-
-        const newPAYE =
-          computePAYE(
-            gross,
-            pension,
-            nhf,
-            nhis,
-            other + reliefMonthly
-          );
-
-        return {
-
-          ...r,
-
-          "Rent Relief Applied":
-            Math.round(
-              reliefMonthly
-            ),
-
-          "PAYE Under Current Tax Reform":
-            Math.round(
-              newPAYE
-            )
-
-        };
-
-      });
-
-    previewExcel(
-      processedData
-    );
-
-    downloadBtn.style.display =
-      "block";
-  };
-
-  reader.readAsArrayBuffer(file);
-}
-
-/* ================= EXCEL PREVIEW ================= */
-
-function previewExcel(data) {
-
-  if (!data.length) return;
-
-  let html =
-    "<table><tr>";
-
-  Object.keys(
-    data[0]
-  ).forEach(k => {
-
-    html +=
-      `<th>${k}</th>`;
-
-  });
-
-  html +=
-    "</tr>";
-
-  data.forEach(row => {
-
-    html +=
-      "<tr>";
-
-    Object.values(
-      row
-    ).forEach(v => {
-
-      html +=
-        `<td>${v}</td>`;
 
     });
 
-    html +=
-      "</tr>";
+    await tesseractWorker.load();
 
-  });
+    await tesseractWorker.loadLanguage("eng");
 
-  html +=
-    "</table>";
+    await tesseractWorker.initialize("eng");
 
-  excelPreview.innerHTML =
-    html;
+    await tesseractWorker.setParameters({
+
+        tessedit_pageseg_mode: "6",
+
+        preserve_interword_spaces: "1"
+
+    });
+
+    workerReady = true;
+
+    return tesseractWorker;
 }
 
-/* ================= DOWNLOAD EXCEL ================= */
+
+/* =========================================================
+   IMAGE PREPROCESSING
+   ========================================================= */
+
+/*
+   The camera image is processed before OCR.
+
+   Steps:
+   1. Upscale
+   2. Grayscale
+   3. Contrast enhancement
+   4. Sharpening
+   5. Thresholding
+
+   This is particularly useful for mobile camera images.
+*/
+
+
+function preprocessImage(sourceCanvas, mode = "normal") {
+
+    const sourceWidth = sourceCanvas.width;
+    const sourceHeight = sourceCanvas.height;
+
+    const scale = 2;
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = sourceWidth * scale;
+    canvas.height = sourceHeight * scale;
+
+    const ctx = canvas.getContext("2d", {
+        willReadFrequently: true
+    });
+
+    ctx.drawImage(
+        sourceCanvas,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    const imageData =
+        ctx.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+
+        /*
+          Grayscale using luminance.
+        */
+
+        let gray =
+            (0.299 * r) +
+            (0.587 * g) +
+            (0.114 * b);
+
+
+        /*
+          Contrast enhancement.
+        */
+
+        gray =
+            ((gray - 128) * 1.35) + 128;
+
+        gray =
+            Math.max(
+                0,
+                Math.min(255, gray)
+            );
+
+
+        /*
+          Optional threshold mode.
+        */
+
+        if (mode === "threshold") {
+
+            gray =
+                gray > 165
+                    ? 255
+                    : 0;
+
+        }
+
+
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
+
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    return canvas;
+}
+
+
+/* =========================================================
+   SHARPEN IMAGE
+   ========================================================= */
+
+function sharpenCanvas(canvas) {
+
+    const ctx =
+        canvas.getContext("2d", {
+            willReadFrequently: true
+        });
+
+    const imageData =
+        ctx.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+    const data = imageData.data;
+
+    const width = canvas.width;
+    const height = canvas.height;
+
+    const copy =
+        new Uint8ClampedArray(data);
+
+    /*
+       Simple sharpening kernel:
+       
+          0  -1   0
+         -1   5  -1
+          0  -1   0
+    */
+
+    for (let y = 1; y < height - 1; y++) {
+
+        for (let x = 1; x < width - 1; x++) {
+
+            const index =
+                (y * width + x) * 4;
+
+            const top =
+                ((y - 1) * width + x) * 4;
+
+            const bottom =
+                ((y + 1) * width + x) * 4;
+
+            const left =
+                (y * width + (x - 1)) * 4;
+
+            const right =
+                (y * width + (x + 1)) * 4;
+
+
+            const value =
+                (5 * copy[index])
+                - copy[top]
+                - copy[bottom]
+                - copy[left]
+                - copy[right];
+
+
+            const finalValue =
+                Math.max(
+                    0,
+                    Math.min(255, value)
+                );
+
+
+            data[index] = finalValue;
+            data[index + 1] = finalValue;
+            data[index + 2] = finalValue;
+
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    return canvas;
+}
+
+
+/* =========================================================
+   CREATE OCR IMAGE VARIANTS
+   ========================================================= */
+
+function createOCRVariants(sourceCanvas) {
+
+    const normal =
+        preprocessImage(
+            sourceCanvas,
+            "normal"
+        );
+
+    const sharpened =
+        sharpenCanvas(normal);
+
+    const threshold =
+        preprocessImage(
+            sourceCanvas,
+            "threshold"
+        );
+
+    return {
+        normal: sharpened,
+        threshold: threshold
+    };
+}
+
+
+/* =========================================================
+   CANVAS TO BLOB
+   ========================================================= */
+
+function canvasToBlob(canvas) {
+
+    return new Promise((resolve, reject) => {
+
+        canvas.toBlob(
+            function(blob) {
+
+                if (!blob) {
+
+                    reject(
+                        new Error(
+                            "Could not create image."
+                        )
+                    );
+
+                    return;
+                }
+
+                resolve(blob);
+
+            },
+            "image/jpeg",
+            0.95
+        );
+
+    });
+
+}
+
+
+/* =========================================================
+   OCR IMAGE
+   ========================================================= */
+
+async function recognizeImage(image) {
+
+    const worker =
+        await initializeOCR();
+
+    const result =
+        await worker.recognize(image);
+
+    return normalizeText(
+        result.data.text
+    );
+}
+
+
+/* =========================================================
+   OCR WITH TWO IMAGE VERSIONS
+   ========================================================= */
+
+async function performOCR(sourceCanvas) {
+
+    const variants =
+        createOCRVariants(sourceCanvas);
+
+
+    const normalBlob =
+        await canvasToBlob(
+            variants.normal
+        );
+
+
+    let text =
+        await recognizeImage(
+            normalBlob
+        );
+
+
+    /*
+       If the first OCR result is weak,
+       run the threshold version too.
+    */
+
+    if (
+        text.length < 80 ||
+        !containsImportantPayslipWords(text)
+    ) {
+
+        const thresholdBlob =
+            await canvasToBlob(
+                variants.threshold
+            );
+
+
+        const secondText =
+            await recognizeImage(
+                thresholdBlob
+            );
+
+
+        if (
+            secondText.length >
+            text.length
+        ) {
+
+            text = secondText;
+
+        }
+
+    }
+
+
+    return text;
+}
+
+
+/* =========================================================
+   CHECK OCR RESULT
+   ========================================================= */
+
+function containsImportantPayslipWords(text) {
+
+    const upper =
+        String(text || "")
+            .toUpperCase();
+
+
+    const words = [
+
+        "GROSS",
+        "SALARY",
+        "PENSION",
+        "NHF",
+        "NHIS",
+        "ALLOWANCE",
+        "PAYE",
+        "EARNINGS",
+        "DEDUCTION"
+
+    ];
+
+
+    let matches = 0;
+
+
+    for (const word of words) {
+
+        if (upper.includes(word)) {
+            matches++;
+        }
+
+    }
+
+
+    return matches >= 2;
+}
+
+
+/* =========================================================
+   MONEY EXTRACTION
+   ========================================================= */
+
+function extractMoney(text) {
+
+    if (!text) {
+        return [];
+    }
+
+
+    const cleaned =
+        String(text)
+            .replace(/₦/g, " ")
+            .replace(/NGN/gi, " ")
+            .replace(/\r/g, "\n");
+
+
+    const matches =
+        cleaned.match(
+            /\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b|\b\d+(?:\.\d{1,2})?\b/g
+        );
+
+
+    if (!matches) {
+        return [];
+    }
+
+
+    return matches
+        .map(value => {
+
+            const number =
+                numberValue(value);
+
+            return {
+
+                raw: value,
+
+                value: number
+
+            };
+
+        })
+        .filter(item => item.value > 0);
+
+}
+
+
+/* =========================================================
+   FIND VALUE NEAR LABEL
+   ========================================================= */
+
+function findValueNearLabel(
+    text,
+    labelPatterns
+) {
+
+    const lines =
+        String(text || "")
+            .split("\n")
+            .map(line => line.trim())
+            .filter(Boolean);
+
+
+    for (let i = 0; i < lines.length; i++) {
+
+        const line =
+            lines[i];
+
+
+        const upper =
+            line.toUpperCase();
+
+
+        let matched = false;
+
+
+        for (const pattern of labelPatterns) {
+
+            if (
+                upper.includes(
+                    pattern.toUpperCase()
+                )
+            ) {
+
+                matched = true;
+                break;
+
+            }
+
+        }
+
+
+        if (!matched) {
+            continue;
+        }
+
+
+        /*
+          First look for a number on the same line.
+        */
+
+        const sameLine =
+            extractMoney(line);
+
+
+        if (sameLine.length > 0) {
+
+            return sameLine[
+                sameLine.length - 1
+            ].value;
+
+        }
+
+
+        /*
+          If no number is on the same line,
+          check the next two lines.
+        */
+
+        for (
+            let j = i + 1;
+            j <= i + 2 && j < lines.length;
+            j++
+        ) {
+
+            const nearby =
+                extractMoney(
+                    lines[j]
+                );
+
+
+            if (nearby.length > 0) {
+
+                return nearby[0].value;
+
+            }
+
+        }
+
+    }
+
+
+    return 0;
+}
+
+
+/* =========================================================
+   EXTRACT PAYSLIP DATA
+   ========================================================= */
+
+function extractPayslipData(text) {
+
+    const upper =
+        String(text || "")
+            .toUpperCase();
+
+
+    /*
+       Gross salary
+    */
+
+    let gross =
+        findValueNearLabel(
+            upper,
+            [
+                "GROSS SALARY",
+                "GROSS PAY",
+                "GROSS",
+                "TOTAL EARNINGS",
+                "TOTAL PAY",
+                "GROSS INCOME",
+                "TOTAL GROSS"
+            ]
+        );
+
+
+    /*
+       Pension
+    */
+
+    let pension =
+        findValueNearLabel(
+            upper,
+            [
+                "PENSION",
+                "PEN",
+                "PENSION DEDUCTION"
+            ]
+        );
+
+
+    /*
+       NHF
+    */
+
+    let nhf =
+        findValueNearLabel(
+            upper,
+            [
+                "NHF",
+                "NATIONAL HOUSING FUND"
+            ]
+        );
+
+
+    /*
+       NHIS
+    */
+
+    let nhis =
+        findValueNearLabel(
+            upper,
+            [
+                "NHIS",
+                "NATIONAL HEALTH INSURANCE",
+                "HEALTH INSURANCE"
+            ]
+        );
+
+
+    /*
+       Some payslips use "Basic Salary"
+       instead of Gross Salary.
+
+       We don't immediately use it as gross,
+       because gross is preferable.
+    */
+
+    if (!gross) {
+
+        gross =
+            findValueNearLabel(
+                upper,
+                [
+                    "TOTAL SALARY",
+                    "TOTAL REMUNERATION",
+                    "TAXABLE GROSS"
+                ]
+            );
+
+    }
+
+
+    return {
+
+        gross: gross,
+
+        pension: pension,
+
+        nhf: nhf,
+
+        nhis: nhis
+
+    };
+
+}
+
+
+/* =========================================================
+   DISPLAY OCR RESULT
+   ========================================================= */
+
+function displayPayslipResult(
+    data,
+    ocrText = ""
+) {
+
+    const result =
+        document.getElementById("result");
+
+
+    if (!result) {
+        return;
+    }
+
+
+    if (!data.gross) {
+
+        result.innerHTML = `
+
+            <div class="error">
+
+                <strong>
+                Could not confidently identify Gross Salary.
+                </strong>
+
+                <br><br>
+
+                Please make sure:
+
+                <ul>
+                    <li>The payslip is clear.</li>
+                    <li>The whole payslip is inside the camera frame.</li>
+                    <li>There is enough light.</li>
+                    <li>The camera is focused on the text.</li>
+                </ul>
+
+            </div>
+
+            <details>
+
+                <summary>
+                Show OCR text
+                </summary>
+
+                <pre style="
+                    white-space:pre-wrap;
+                    margin-top:10px;
+                ">${escapeHTML(ocrText)}</pre>
+
+            </details>
+
+        `;
+
+        return;
+    }
+
+
+    const rent =
+        numberValue(
+            document.getElementById(
+                "rentAmount"
+            )?.value
+        );
+
+
+    const employerHouse =
+        document.getElementById(
+            "employerHouse"
+        )?.checked || false;
+
+
+    let rentReliefAnnual = 0;
+
+
+    if (
+        rent > 0 &&
+        !employerHouse
+    ) {
+
+        rentReliefAnnual =
+            Math.min(
+                rent * 0.20,
+                500000
+            );
+
+    }
+
+
+    const rentReliefMonthly =
+        rentReliefAnnual / 12;
+
+
+    const paye =
+        computePAYE(
+            data.gross,
+            data.pension,
+            data.nhf,
+            data.nhis,
+            rentReliefMonthly
+        );
+
+
+    result.innerHTML = `
+
+        <div class="success">
+
+            <strong>
+            PAYE computation completed
+            </strong>
+
+        </div>
+
+        <table>
+
+            <tr>
+                <th>Item</th>
+                <th>Amount</th>
+            </tr>
+
+            <tr>
+                <td>Gross Salary</td>
+                <td>${money(data.gross)}</td>
+            </tr>
+
+            <tr>
+                <td>Pension</td>
+                <td>${money(data.pension)}</td>
+            </tr>
+
+            <tr>
+                <td>NHF</td>
+                <td>${money(data.nhf)}</td>
+            </tr>
+
+            <tr>
+                <td>NHIS</td>
+                <td>${money(data.nhis)}</td>
+            </tr>
+
+            <tr>
+                <td>Rent Relief Applied</td>
+                <td>${money(rentReliefAnnual)}</td>
+            </tr>
+
+            <tr>
+
+                <th>
+                PAYE Under Current Tax Reform
+                </th>
+
+                <th>
+                ${money(paye)}
+                </th>
+
+            </tr>
+
+        </table>
+
+        <details style="margin-top:15px;">
+
+            <summary>
+            Show extracted information
+            </summary>
+
+            <pre style="
+                white-space:pre-wrap;
+                margin-top:10px;
+            ">${escapeHTML(ocrText)}</pre>
+
+        </details>
+
+    `;
+
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+   ========================================================= */
+
+function escapeHTML(value) {
+
+    return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+}
+
+
+/* =========================================================
+   CREATE CANVAS FROM IMAGE FILE
+   ========================================================= */
+
+function imageFileToCanvas(file) {
+
+    return new Promise((resolve, reject) => {
+
+        const image =
+            new Image();
+
+        const url =
+            URL.createObjectURL(file);
+
+
+        image.onload = function() {
+
+            const canvas =
+                document.createElement("canvas");
+
+
+            canvas.width =
+                image.naturalWidth;
+
+            canvas.height =
+                image.naturalHeight;
+
+
+            const ctx =
+                canvas.getContext("2d");
+
+
+            ctx.drawImage(
+                image,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+
+
+            URL.revokeObjectURL(url);
+
+            resolve(canvas);
+
+        };
+
+
+        image.onerror = function() {
+
+            URL.revokeObjectURL(url);
+
+            reject(
+                new Error(
+                    "Could not read image."
+                )
+            );
+
+        };
+
+
+        image.src = url;
+
+    });
+
+}
+
+
+/* =========================================================
+   PROCESS IMAGE FILE
+   ========================================================= */
+
+async function processImageFile(file) {
+
+    if (!file) {
+
+        throw new Error(
+            "No image was selected."
+        );
+
+    }
+
+
+    const canvas =
+        await imageFileToCanvas(file);
+
+
+    const ocrText =
+        await performOCR(canvas);
+
+
+    return {
+
+        text: ocrText,
+
+        data:
+            extractPayslipData(
+                ocrText
+            )
+
+    };
+
+}
+
+
+/* =========================================================
+   PROCESS SELECTED FILE
+   ========================================================= */
+
+async function processSelectedFile() {
+
+    const loading =
+        document.getElementById(
+            "loading"
+        );
+
+
+    const result =
+        document.getElementById(
+            "result"
+        );
+
+
+    try {
+
+        let file =
+            selectedFile;
+
+
+        /*
+          If the user selected a gallery file.
+        */
+
+        if (!file) {
+
+            const input =
+                document.getElementById(
+                    "galleryInput"
+                );
+
+
+            if (
+                input &&
+                input.files &&
+                input.files.length > 0
+            ) {
+
+                file =
+                    input.files[0];
+
+            }
+
+        }
+
+
+        /*
+          If a camera capture exists,
+          use that.
+        */
+
+        if (
+            capturedCameraBlob &&
+            !file
+        ) {
+
+            file =
+                new File(
+                    [
+                        capturedCameraBlob
+                    ],
+                    "camera-payslip.jpg",
+                    {
+                        type:
+                            "image/jpeg"
+                    }
+                );
+
+        }
+
+
+        if (!file) {
+
+            if (result) {
+
+                result.innerHTML = `
+
+                    <div class="warning">
+
+                        Please select a payslip image,
+                        PDF, or scan one with the camera.
+
+                    </div>
+
+                `;
+
+            }
+
+            return;
+
+        }
+
+
+        if (loading) {
+
+            loading.textContent =
+                "Preparing payslip...";
+
+        }
+
+
+        /*
+          PDF handling.
+        */
+
+        if (
+            file.type === "application/pdf" ||
+            file.name.toLowerCase().endsWith(".pdf")
+        ) {
+
+            await processPDF(file);
+
+            return;
+
+        }
+
+
+        if (loading) {
+
+            loading.textContent =
+                "Enhancing image for OCR...";
+
+        }
+
+
+        const response =
+            await processImageFile(
+                file
+            );
+
+
+        displayPayslipResult(
+            response.data,
+            response.text
+        );
+
+
+        if (loading) {
+
+            loading.textContent =
+                "OCR completed.";
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "OCR error:",
+            error
+        );
+
+
+        if (loading) {
+
+            loading.textContent =
+                "";
+
+        }
+
+
+        if (result) {
+
+            result.innerHTML = `
+
+                <div class="error">
+
+                    <strong>
+                    OCR processing failed.
+                    </strong>
+
+                    <br><br>
+
+                    ${escapeHTML(
+                        error.message ||
+                        "Please try again."
+                    )}
+
+                </div>
+
+            `;
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   PDF PROCESSING
+   ========================================================= */
+
+async function processPDF(file) {
+
+    const loading =
+        document.getElementById(
+            "loading"
+        );
+
+    const result =
+        document.getElementById(
+            "result"
+        );
+
+
+    try {
+
+        if (!window.pdfjsLib) {
+
+            throw new Error(
+                "PDF reader could not be loaded."
+            );
+
+        }
+
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+
+        const arrayBuffer =
+            await file.arrayBuffer();
+
+
+        const pdf =
+            await pdfjsLib.getDocument({
+                data: arrayBuffer
+            }).promise;
+
+
+        let combinedText = "";
+
+
+        for (
+            let pageNumber = 1;
+            pageNumber <= pdf.numPages;
+            pageNumber++
+        ) {
+
+            if (loading) {
+
+                loading.textContent =
+                    `Processing PDF page ${pageNumber} of ${pdf.numPages}...`;
+
+            }
+
+
+            const page =
+                await pdf.getPage(
+                    pageNumber
+                );
+
+
+            const viewport =
+                page.getViewport({
+                    scale: 2.5
+                });
+
+
+            const canvas =
+                document.createElement(
+                    "canvas"
+                );
+
+
+            canvas.width =
+                viewport.width;
+
+            canvas.height =
+                viewport.height;
+
+
+            const context =
+                canvas.getContext(
+                    "2d"
+                );
+
+
+            await page.render({
+
+                canvasContext:
+                    context,
+
+                viewport:
+                    viewport
+
+            }).promise;
+
+
+            const pageText =
+                await performOCR(
+                    canvas
+                );
+
+
+            combinedText +=
+                "\n" +
+                pageText;
+
+        }
+
+
+        combinedText =
+            normalizeText(
+                combinedText
+            );
+
+
+        const data =
+            extractPayslipData(
+                combinedText
+            );
+
+
+        displayPayslipResult(
+            data,
+            combinedText
+        );
+
+
+        if (loading) {
+
+            loading.textContent =
+                "PDF OCR completed.";
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "PDF OCR error:",
+            error
+        );
+
+
+        if (result) {
+
+            result.innerHTML = `
+
+                <div class="error">
+
+                    PDF processing failed.
+
+                    <br><br>
+
+                    ${escapeHTML(
+                        error.message
+                    )}
+
+                </div>
+
+            `;
+
+        }
+
+
+        if (loading) {
+
+            loading.textContent =
+                "";
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   GALLERY INPUT
+   ========================================================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        const galleryInput =
+            document.getElementById(
+                "galleryInput"
+            );
+
+
+        if (galleryInput) {
+
+            galleryInput.addEventListener(
+                "change",
+                function() {
+
+                    if (
+                        this.files &&
+                        this.files.length > 0
+                    ) {
+
+                        selectedFile =
+                            this.files[0];
+
+                        capturedCameraBlob =
+                            null;
+
+                    }
+
+                }
+            );
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   CAMERA SCANNER
+   ========================================================= */
+
+async function openCameraScanner() {
+
+    const modal =
+        document.getElementById(
+            "cameraModal"
+        );
+
+
+    const video =
+        document.getElementById(
+            "cameraVideo"
+        );
+
+
+    const status =
+        document.getElementById(
+            "cameraStatus"
+        );
+
+
+    if (!modal || !video) {
+
+        alert(
+            "Camera interface could not be loaded."
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        /*
+          Camera must be accessed through HTTPS
+          or localhost.
+        */
+
+        if (
+            !window.isSecureContext
+        ) {
+
+            throw new Error(
+                "Camera access requires HTTPS. Please open the website using https://."
+            );
+
+        }
+
+
+        if (
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia
+        ) {
+
+            throw new Error(
+                "This browser does not support direct camera access."
+            );
+
+        }
+
+
+        modal.classList.add(
+            "active"
+        );
+
+
+        if (status) {
+
+            status.style.display =
+                "block";
+
+            status.textContent =
+                "Starting camera...";
+
+        }
+
+
+        /*
+          Rear camera with high resolution.
+        */
+
+        cameraStream =
+            await navigator.mediaDevices.getUserMedia({
+
+                video: {
+
+                    facingMode: {
+                        ideal: "environment"
+                    },
+
+                    width: {
+                        ideal: 1920
+                    },
+
+                    height: {
+                        ideal: 1080
+                    },
+
+                    frameRate: {
+                        ideal: 30,
+                        max: 30
+                    }
+
+                },
+
+                audio: false
+
+            });
+
+
+        video.srcObject =
+            cameraStream;
+
+
+        await video.play();
+
+
+        if (status) {
+
+            status.textContent =
+                "Position the payslip inside the box";
+
+            setTimeout(
+                function() {
+
+                    status.style.display =
+                        "none";
+
+                },
+                2500
+            );
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Camera error:",
+            error
+        );
+
+
+        modal.classList.remove(
+            "active"
+        );
+
+
+        if (status) {
+
+            status.style.display =
+                "none";
+
+        }
+
+
+        alert(
+            error.message ||
+            "Unable to access camera."
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   CAPTURE PAYSLIP FROM LIVE CAMERA
+   ========================================================= */
+
+async function capturePayslipImage() {
+
+    const video =
+        document.getElementById(
+            "cameraVideo"
+        );
+
+
+    const canvas =
+        document.getElementById(
+            "cameraCanvas"
+        );
+
+
+    const status =
+        document.getElementById(
+            "cameraStatus"
+        );
+
+
+    if (
+        !video ||
+        !canvas
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        !video.videoWidth ||
+        !video.videoHeight
+    ) {
+
+        alert(
+            "Camera is not ready yet. Please wait a moment."
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        if (status) {
+
+            status.style.display =
+                "block";
+
+            status.textContent =
+                "Capturing payslip...";
+
+        }
+
+
+        /*
+          Use the actual camera resolution.
+        */
+
+        canvas.width =
+            video.videoWidth;
+
+        canvas.height =
+            video.videoHeight;
+
+
+        const ctx =
+            canvas.getContext(
+                "2d",
+                {
+                    willReadFrequently: true
+                }
+            );
+
+
+        /*
+          Draw the high-resolution camera frame.
+        */
+
+        ctx.drawImage(
+            video,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+
+        /*
+          Convert directly to JPEG.
+        */
+
+        capturedCameraBlob =
+            await canvasToBlob(
+                canvas
+            );
+
+
+        selectedFile =
+            new File(
+                [
+                    capturedCameraBlob
+                ],
+                "payslip-camera.jpg",
+                {
+                    type:
+                        "image/jpeg"
+                }
+            );
+
+
+        /*
+          Stop camera immediately after capture.
+        */
+
+        stopCameraStream();
+
+
+        const modal =
+            document.getElementById(
+                "cameraModal"
+            );
+
+
+        if (modal) {
+
+            modal.classList.remove(
+                "active"
+            );
+
+        }
+
+
+        const loading =
+            document.getElementById(
+                "loading"
+            );
+
+
+        const result =
+            document.getElementById(
+                "result"
+            );
+
+
+        if (loading) {
+
+            loading.textContent =
+                "Enhancing camera image and reading payslip...";
+
+        }
+
+
+        if (result) {
+
+            result.innerHTML = `
+
+                <div class="warning">
+
+                    📷 Camera image captured.
+
+                    <br>
+
+                    Enhancing image and running OCR...
+
+                </div>
+
+            `;
+
+        }
+
+
+        /*
+          Run OCR immediately.
+        */
+
+        const response =
+            await processImageFile(
+                selectedFile
+            );
+
+
+        displayPayslipResult(
+            response.data,
+            response.text
+        );
+
+
+        if (loading) {
+
+            loading.textContent =
+                "Camera OCR completed.";
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Camera capture error:",
+            error
+        );
+
+
+        stopCameraStream();
+
+
+        const modal =
+            document.getElementById(
+                "cameraModal"
+            );
+
+
+        if (modal) {
+
+            modal.classList.remove(
+                "active"
+            );
+
+        }
+
+
+        alert(
+            error.message ||
+            "Unable to process camera image."
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   CLOSE CAMERA
+   ========================================================= */
+
+function closeCameraScanner() {
+
+    stopCameraStream();
+
+
+    const modal =
+        document.getElementById(
+            "cameraModal"
+        );
+
+
+    if (modal) {
+
+        modal.classList.remove(
+            "active"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   STOP CAMERA STREAM
+   ========================================================= */
+
+function stopCameraStream() {
+
+    if (!cameraStream) {
+        return;
+    }
+
+
+    cameraStream
+        .getTracks()
+        .forEach(
+            function(track) {
+
+                track.stop();
+
+            }
+        );
+
+
+    cameraStream =
+        null;
+
+
+    const video =
+        document.getElementById(
+            "cameraVideo"
+        );
+
+
+    if (video) {
+
+        video.srcObject =
+            null;
+
+    }
+
+}
+
+
+/* =========================================================
+   RENT RELIEF
+   ========================================================= */
+
+function applyRentRelief() {
+
+    const rentInput =
+        document.getElementById(
+            "rentAmount"
+        );
+
+
+    const employerHouse =
+        document.getElementById(
+            "employerHouse"
+        );
+
+
+    const rentCheck =
+        document.getElementById(
+            "rentCheck"
+        );
+
+
+    const result =
+        document.getElementById(
+            "result"
+        );
+
+
+    const rent =
+        numberValue(
+            rentInput?.value
+        );
+
+
+    const housing =
+        employerHouse?.checked ||
+        false;
+
+
+    /*
+      Employer-provided accommodation
+      means no rent relief.
+    */
+
+    if (housing) {
+
+        if (rentCheck) {
+            rentCheck.checked = false;
+        }
+
+
+        if (result) {
+
+            result.innerHTML = `
+
+                <div class="warning">
+
+                    <strong>
+                    Rent Relief: ₦0
+                    </strong>
+
+                    <br><br>
+
+                    Employer-provided accommodation
+                    means rent relief does not apply.
+
+                </div>
+
+            `;
+
+        }
+
+        return;
+
+    }
+
+
+    if (rent <= 0) {
+
+        if (result) {
+
+            result.innerHTML = `
+
+                <div class="warning">
+
+                    No rent amount was entered.
+
+                    <br><br>
+
+                    Rent relief is ₦0.
+
+                </div>
+
+            `;
+
+        }
+
+        return;
+
+    }
+
+
+    /*
+      Current rule:
+      20% of annual rent, maximum ₦500,000.
+    */
+
+    const relief =
+        Math.min(
+            rent * 0.20,
+            500000
+        );
+
+
+    if (result) {
+
+        result.innerHTML = `
+
+            <div class="success">
+
+                <strong>
+                Rent relief calculated successfully.
+                </strong>
+
+                <br><br>
+
+                Annual Rent:
+                <strong>${money(rent)}</strong>
+
+                <br>
+
+                Rent Relief Applied:
+                <strong>${money(relief)}</strong>
+
+                <br><br>
+
+                Monthly equivalent used for PAYE:
+                <strong>${money(relief / 12)}</strong>
+
+            </div>
+
+        `;
+
+    }
+
+}
+
+
+/* =========================================================
+   EXCEL PAYROLL PROCESSING
+   ========================================================= */
+
+async function processExcel() {
+
+    const input =
+        document.getElementById(
+            "excelFile"
+        );
+
+
+    const preview =
+        document.getElementById(
+            "excelPreview"
+        );
+
+
+    const downloadButton =
+        document.getElementById(
+            "downloadBtn"
+        );
+
+
+    if (
+        !input ||
+        !input.files ||
+        !input.files.length
+    ) {
+
+        if (preview) {
+
+            preview.innerHTML = `
+
+                <div class="warning">
+
+                    Please select an Excel payroll file.
+
+                </div>
+
+            `;
+
+        }
+
+        return;
+
+    }
+
+
+    try {
+
+        const file =
+            input.files[0];
+
+
+        const arrayBuffer =
+            await file.arrayBuffer();
+
+
+        const workbook =
+            XLSX.read(
+                arrayBuffer,
+                {
+                    type: "array"
+                }
+            );
+
+
+        const sheetName =
+            workbook.SheetNames[0];
+
+
+        const worksheet =
+            workbook.Sheets[
+                sheetName
+            ];
+
+
+        const rows =
+            XLSX.utils.sheet_to_json(
+                worksheet,
+                {
+                    defval: ""
+                }
+            );
+
+
+        if (!rows.length) {
+
+            throw new Error(
+                "The Excel file contains no payroll records."
+            );
+
+        }
+
+
+        processedData = [];
+
+
+        for (
+            const row of rows
+        ) {
+
+            const employeeName =
+                row["Employee Name"] ||
+                row["Name"] ||
+                "";
+
+
+            const gross =
+                numberValue(
+                    row["Gross Salary"]
+                );
+
+
+            const pension =
+                numberValue(
+                    row["Pension"]
+                );
+
+
+            const nhf =
+                numberValue(
+                    row["NHF"]
+                );
+
+
+            const nhis =
+                numberValue(
+                    row["NHIS"]
+                );
+
+
+            const rent =
+                numberValue(
+                    row["Rent"]
+                );
+
+
+            const employerHousingValue =
+                row["Employer Housing"];
+
+
+            const employerHousing =
+                String(
+                    employerHousingValue ||
+                    ""
+                )
+                    .trim()
+                    .toLowerCase();
+
+
+            const hasEmployerHousing =
+                employerHousing === "yes" ||
+                employerHousing === "y" ||
+                employerHousing === "true" ||
+                employerHousing === "1";
+
+
+            /*
+              Rent > 0 automatically means
+              rent has been declared.
+
+              No Renting column is required.
+            */
+
+            let rentReliefAnnual = 0;
+
+
+            if (
+                rent > 0 &&
+                !hasEmployerHousing
+            ) {
+
+                rentReliefAnnual =
+                    Math.min(
+                        rent * 0.20,
+                        500000
+                    );
+
+            }
+
+
+            /*
+              Monthly relief is used internally
+              for monthly PAYE calculation.
+            */
+
+            const rentReliefMonthly =
+                rentReliefAnnual / 12;
+
+
+            const paye =
+                computePAYE(
+                    gross,
+                    pension,
+                    nhf,
+                    nhis,
+                    rentReliefMonthly
+                );
+
+
+            /*
+              Reconstruct the row from scratch.
+
+              This deliberately removes:
+              - Other Deductions
+              - Renting
+              - PAYE Deducted
+              - Old PAYE comparison fields
+
+              from the output.
+            */
+
+            processedData.push({
+
+                "Employee Name":
+                    employeeName,
+
+                "Gross Salary":
+                    gross,
+
+                "Pension":
+                    pension,
+
+                "NHF":
+                    nhf,
+
+                "NHIS":
+                    nhis,
+
+                "Rent":
+                    rent,
+
+                "Employer Housing":
+                    hasEmployerHousing
+                        ? "Yes"
+                        : "No",
+
+                "Rent Relief Applied":
+                    rentReliefAnnual,
+
+                "PAYE Under Current Tax Reform":
+                    Number(
+                        paye.toFixed(2)
+                    )
+
+            });
+
+        }
+
+
+        displayExcelPreview(
+            processedData
+        );
+
+
+        if (downloadButton) {
+
+            downloadButton.style.display =
+                "inline-block";
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Excel error:",
+            error
+        );
+
+
+        if (preview) {
+
+            preview.innerHTML = `
+
+                <div class="error">
+
+                    <strong>
+                    Excel processing failed.
+                    </strong>
+
+                    <br><br>
+
+                    ${escapeHTML(
+                        error.message
+                    )}
+
+                </div>
+
+            `;
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   DISPLAY EXCEL PREVIEW
+   ========================================================= */
+
+function displayExcelPreview(data) {
+
+    const preview =
+        document.getElementById(
+            "excelPreview"
+        );
+
+
+    if (!preview) {
+        return;
+    }
+
+
+    if (!data.length) {
+
+        preview.innerHTML =
+            "<p>No records found.</p>";
+
+        return;
+
+    }
+
+
+    const columns = [
+
+        "Employee Name",
+        "Gross Salary",
+        "Pension",
+        "NHF",
+        "NHIS",
+        "Rent",
+        "Employer Housing",
+        "Rent Relief Applied",
+        "PAYE Under Current Tax Reform"
+
+    ];
+
+
+    let html =
+        "<div style='overflow-x:auto;'><table>";
+
+
+    html += "<thead><tr>";
+
+
+    for (
+        const column of columns
+    ) {
+
+        html +=
+            `<th>${escapeHTML(column)}</th>`;
+
+    }
+
+
+    html += "</tr></thead>";
+
+
+    html += "<tbody>";
+
+
+    for (
+        const row of data
+    ) {
+
+        html += "<tr>";
+
+
+        for (
+            const column of columns
+        ) {
+
+            let value =
+                row[column];
+
+
+            if (
+                [
+                    "Gross Salary",
+                    "Pension",
+                    "NHF",
+                    "NHIS",
+                    "Rent",
+                    "Rent Relief Applied",
+                    "PAYE Under Current Tax Reform"
+                ].includes(column)
+            ) {
+
+                value =
+                    money(value);
+
+            }
+
+
+            html +=
+                `<td>${escapeHTML(value)}</td>`;
+
+        }
+
+
+        html += "</tr>";
+
+    }
+
+
+    html += "</tbody></table></div>";
+
+
+    preview.innerHTML =
+        html;
+
+}
+
+
+/* =========================================================
+   DOWNLOAD PROCESSED EXCEL
+   ========================================================= */
 
 function downloadExcel() {
 
-  const ws =
-    XLSX.utils.json_to_sheet(
-      processedData
+    if (
+        !processedData ||
+        !processedData.length
+    ) {
+
+        alert(
+            "Please process a payroll file first."
+        );
+
+        return;
+
+    }
+
+
+    const worksheet =
+        XLSX.utils.json_to_sheet(
+            processedData
+        );
+
+
+    const workbook =
+        XLSX.utils.book_new();
+
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "PAYE Computation"
     );
 
-  const wb =
-    XLSX.utils.book_new();
 
-  XLSX.utils.book_append_sheet(
-    wb,
-    ws,
-    "Processed"
-  );
+    XLSX.writeFile(
+        workbook,
+        "PAYE_Computation_Current_Tax_Reform.xlsx"
+    );
 
-  XLSX.writeFile(
-    wb,
-    "Processed_PAYE.xlsx"
-  );
 }
+
+
+/* =========================================================
+   PAGE VISIBILITY
+   ========================================================= */
+
+document.addEventListener(
+    "visibilitychange",
+    function() {
+
+        if (
+            document.hidden
+        ) {
+
+            stopCameraStream();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   PAGE UNLOAD
+   ========================================================= */
+
+window.addEventListener(
+    "beforeunload",
+    function() {
+
+        stopCameraStream();
+
+    }
+);
+
+
+/* =========================================================
+   END
+   ========================================================= */
