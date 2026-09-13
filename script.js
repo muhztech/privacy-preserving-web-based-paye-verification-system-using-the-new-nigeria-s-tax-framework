@@ -4,12 +4,6 @@
    Built by Mudris Tech Solution
    ========================================================= */
 
-
-/* =========================================================
-   TAX CONFIGURATION
-   Nigeria Tax Act / Current Tax Reform
-   ========================================================= */
-
 const TAX_FREE = 800000;
 
 const TAX_BANDS = [
@@ -20,69 +14,52 @@ const TAX_BANDS = [
     { limit: Infinity, rate: 0.25 }
 ];
 
-
-/* =========================================================
-   GLOBAL VARIABLES
-   ========================================================= */
-
 let selectedFile = null;
 let capturedCameraBlob = null;
-
 let cameraStream = null;
-
-let tesseractWorker = null;
-let workerReady = false;
-
 let processedData = [];
 
-
-/* =========================================================
-   BASIC HELPERS
-   ========================================================= */
-
-function money(value) {
-
-    const number = Number(value) || 0;
-
+function money(v) {
     return new Intl.NumberFormat("en-NG", {
         style: "currency",
         currency: "NGN",
         maximumFractionDigits: 2
-    }).format(number);
+    }).format(Number(v) || 0);
 }
 
+function numberValue(v) {
+    if (v === null || v === undefined || v === "") return 0;
 
-function numberValue(value) {
-
-    if (value === null || value === undefined) {
-        return 0;
+    if (typeof v === "number") {
+        return Number.isFinite(v) ? v : 0;
     }
 
-    if (typeof value === "number") {
-        return isNaN(value) ? 0 : value;
-    }
+    const n = parseFloat(
+        String(v)
+            .replace(/₦/g, "")
+            .replace(/NGN/gi, "")
+            .replace(/,/g, "")
+            .replace(/\s/g, "")
+    );
 
-    let text = String(value)
-        .replace(/₦/gi, "")
-        .replace(/NGN/gi, "")
-        .replace(/,/g, "")
-        .replace(/\s/g, "")
-        .trim();
-
-    const number = parseFloat(text);
-
-    return isNaN(number) ? 0 : number;
+    return Number.isFinite(n) ? n : 0;
 }
 
-
-function normalizeText(text) {
-
-    return String(text || "")
+function normalizeText(t) {
+    return String(t || "")
         .replace(/\r/g, "\n")
         .replace(/[ \t]+/g, " ")
         .replace(/\n{3,}/g, "\n")
         .trim();
+}
 
+function escapeHTML(v) {
+    return String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 
@@ -95,30 +72,25 @@ function computePAYE(
     pension = 0,
     nhf = 0,
     nhis = 0,
-    rentRelief = 0
+    rentReliefMonthly = 0
 ) {
 
-    monthlyGross = numberValue(monthlyGross);
-    pension = numberValue(pension);
-    nhf = numberValue(nhf);
-    nhis = numberValue(nhis);
-    rentRelief = numberValue(rentRelief);
+    const gross = numberValue(monthlyGross);
 
-    const annualGross = monthlyGross * 12;
+    const annualGross = gross * 12;
 
-    const annualPension = pension * 12;
-    const annualNHF = nhf * 12;
-    const annualNHIS = nhis * 12;
-
-    const annualRentRelief = rentRelief * 12;
+    const annualDeductions =
+        (
+            numberValue(pension) +
+            numberValue(nhf) +
+            numberValue(nhis) +
+            numberValue(rentReliefMonthly)
+        ) * 12;
 
     let taxableIncome =
-        annualGross
-        - annualPension
-        - annualNHF
-        - annualNHIS
-        - annualRentRelief
-        - TAX_FREE;
+        annualGross -
+        annualDeductions -
+        TAX_FREE;
 
     taxableIncome = Math.max(0, taxableIncome);
 
@@ -131,14 +103,17 @@ function computePAYE(
             break;
         }
 
-        const amountInBand = Math.min(
-            remaining,
-            band.limit
-        );
+        const amountInBand =
+            Math.min(
+                remaining,
+                band.limit
+            );
 
-        annualTax += amountInBand * band.rate;
+        annualTax +=
+            amountInBand * band.rate;
 
-        remaining -= amountInBand;
+        remaining -=
+            amountInBand;
     }
 
     return annualTax / 12;
@@ -146,135 +121,162 @@ function computePAYE(
 
 
 /* =========================================================
-   TESSERACT WORKER
+   RENT RELIEF
+   ========================================================= */
+
+function calculateRentRelief(
+    annualRent,
+    employerHousing
+) {
+
+    const rent =
+        numberValue(annualRent);
+
+    if (
+        employerHousing ||
+        rent <= 0
+    ) {
+        return 0;
+    }
+
+    return Math.min(
+        rent * 0.20,
+        500000
+    );
+}
+
+
+/* =========================================================
+   TESSERACT OCR
    ========================================================= */
 
 async function initializeOCR() {
 
-    if (workerReady && tesseractWorker) {
-        return tesseractWorker;
-    }
-
-    if (!window.Tesseract) {
-        throw new Error(
-            "Tesseract OCR library could not be loaded."
-        );
-    }
-
-    const loading = document.getElementById("loading");
-
-    if (loading) {
-        loading.textContent = "Preparing OCR engine...";
-    }
-
     /*
-     * Tesseract.js 4.1.1:
+     * We deliberately DO NOT use:
      *
-     * createWorker() is asynchronous and returns
-     * the ready worker.
-     *
-     * DO NOT use:
      * worker.load()
      * worker.loadLanguage()
      * worker.initialize()
+     *
+     * This avoids the Tesseract version
+     * compatibility problem.
      */
 
-    tesseractWorker = await Tesseract.createWorker(
-        "eng",
-        1,
-        {
-            logger: function (message) {
+    if (!window.Tesseract) {
 
-                if (!message) {
-                    return;
-                }
+        throw new Error(
+            "Tesseract OCR library could not be loaded. " +
+            "Check your internet connection and reload the page."
+        );
+    }
 
-                if (message.status === "recognizing text") {
+    return true;
+}
 
-                    const progress =
-                        Math.round(
-                            (message.progress || 0) * 100
-                        );
 
-                    if (loading) {
-                        loading.textContent =
-                            `Reading payslip... ${progress}%`;
+async function recognizeImage(image) {
+
+    await initializeOCR();
+
+    const loading =
+        document.getElementById(
+            "loading"
+        );
+
+    const result =
+        await Tesseract.recognize(
+            image,
+            "eng",
+            {
+                logger: function(message) {
+
+                    if (
+                        !message ||
+                        !loading
+                    ) {
+                        return;
                     }
 
-                } else if (message.status) {
+                    if (
+                        message.status ===
+                        "recognizing text"
+                    ) {
 
-                    if (loading) {
+                        const progress =
+                            Math.round(
+                                (message.progress || 0) * 100
+                            );
+
+                        loading.textContent =
+                            `Reading payslip... ${progress}%`;
+
+                    } else if (
+                        message.status
+                    ) {
+
                         loading.textContent =
                             `OCR: ${message.status}`;
                     }
-
                 }
-
             }
-        }
-    );
+        );
 
-    await tesseractWorker.setParameters({
+    if (
+        !result ||
+        !result.data
+    ) {
 
-        tessedit_pageseg_mode: "6",
-
-        preserve_interword_spaces: "1"
-
-    });
-
-    workerReady = true;
-
-    if (loading) {
-        loading.textContent =
-            "OCR engine ready.";
+        throw new Error(
+            "OCR returned no result."
+        );
     }
 
-    return tesseractWorker;
+    return normalizeText(
+        result.data.text || ""
+    );
 }
+
 
 /* =========================================================
    IMAGE PREPROCESSING
    ========================================================= */
 
-/*
-   The camera image is processed before OCR.
-
-   Steps:
-   1. Upscale
-   2. Grayscale
-   3. Contrast enhancement
-   4. Sharpening
-   5. Thresholding
-
-   This is particularly useful for mobile camera images.
-*/
-
-
-function preprocessImage(sourceCanvas, mode = "normal") {
-
-    const sourceWidth = sourceCanvas.width;
-    const sourceHeight = sourceCanvas.height;
+function preprocessImage(
+    source,
+    mode = "normal"
+) {
 
     const scale = 2;
 
-    const canvas = document.createElement("canvas");
+    const canvas =
+        document.createElement(
+            "canvas"
+        );
 
-    canvas.width = sourceWidth * scale;
-    canvas.height = sourceHeight * scale;
+    canvas.width =
+        source.width * scale;
 
-    const ctx = canvas.getContext("2d", {
-        willReadFrequently: true
-    });
+    canvas.height =
+        source.height * scale;
+
+    const ctx =
+        canvas.getContext(
+            "2d",
+            {
+                willReadFrequently: true
+            }
+        );
 
     ctx.drawImage(
-        sourceCanvas,
+        source,
         0,
         0,
         canvas.width,
         canvas.height
     );
 
-    const imageData =
+    const image =
         ctx.getImageData(
             0,
             0,
@@ -282,76 +284,80 @@ function preprocessImage(sourceCanvas, mode = "normal") {
             canvas.height
         );
 
-    const data = imageData.data;
+    const data =
+        image.data;
 
-    for (let i = 0; i < data.length; i += 4) {
-
-        let r = data[i];
-        let g = data[i + 1];
-        let b = data[i + 2];
-
-        /*
-          Grayscale using luminance.
-        */
+    for (
+        let i = 0;
+        i < data.length;
+        i += 4
+    ) {
 
         let gray =
-            (0.299 * r) +
-            (0.587 * g) +
-            (0.114 * b);
-
-
-        /*
-          Contrast enhancement.
-        */
+            (0.299 * data[i]) +
+            (0.587 * data[i + 1]) +
+            (0.114 * data[i + 2]);
 
         gray =
-            ((gray - 128) * 1.35) + 128;
+            ((gray - 128) * 1.35) +
+            128;
 
         gray =
             Math.max(
                 0,
-                Math.min(255, gray)
+                Math.min(
+                    255,
+                    gray
+                )
             );
 
-
-        /*
-          Optional threshold mode.
-        */
-
-        if (mode === "threshold") {
+        if (
+            mode === "threshold"
+        ) {
 
             gray =
                 gray > 165
                     ? 255
                     : 0;
-
         }
 
+        data[i] =
+            gray;
 
-        data[i] = gray;
-        data[i + 1] = gray;
-        data[i + 2] = gray;
+        data[i + 1] =
+            gray;
 
+        data[i + 2] =
+            gray;
     }
 
-    ctx.putImageData(imageData, 0, 0);
+    ctx.putImageData(
+        image,
+        0,
+        0
+    );
 
     return canvas;
 }
 
 
 /* =========================================================
-   SHARPEN IMAGE
+   SHARPEN
    ========================================================= */
 
-function sharpenCanvas(canvas) {
+function sharpenCanvas(
+    canvas
+) {
 
     const ctx =
-        canvas.getContext("2d", {
-            willReadFrequently: true
-        });
+        canvas.getContext(
+            "2d",
+            {
+                willReadFrequently: true
+            }
+        );
 
-    const imageData =
+    const image =
         ctx.getImageData(
             0,
             0,
@@ -359,25 +365,31 @@ function sharpenCanvas(canvas) {
             canvas.height
         );
 
-    const data = imageData.data;
-
-    const width = canvas.width;
-    const height = canvas.height;
+    const data =
+        image.data;
 
     const copy =
-        new Uint8ClampedArray(data);
+        new Uint8ClampedArray(
+            data
+        );
 
-    /*
-       Simple sharpening kernel:
-       
-          0  -1   0
-         -1   5  -1
-          0  -1   0
-    */
+    const width =
+        canvas.width;
 
-    for (let y = 1; y < height - 1; y++) {
+    const height =
+        canvas.height;
 
-        for (let x = 1; x < width - 1; x++) {
+    for (
+        let y = 1;
+        y < height - 1;
+        y++
+    ) {
+
+        for (
+            let x = 1;
+            x < width - 1;
+            x++
+        ) {
 
             const index =
                 (y * width + x) * 4;
@@ -389,65 +401,45 @@ function sharpenCanvas(canvas) {
                 ((y + 1) * width + x) * 4;
 
             const left =
-                (y * width + (x - 1)) * 4;
+                (y * width + x - 1) * 4;
 
             const right =
-                (y * width + (x + 1)) * 4;
-
+                (y * width + x + 1) * 4;
 
             const value =
-                (5 * copy[index])
-                - copy[top]
-                - copy[bottom]
-                - copy[left]
-                - copy[right];
-
+                (5 * copy[index]) -
+                copy[top] -
+                copy[bottom] -
+                copy[left] -
+                copy[right];
 
             const finalValue =
                 Math.max(
                     0,
-                    Math.min(255, value)
+                    Math.min(
+                        255,
+                        value
+                    )
                 );
 
+            data[index] =
+                finalValue;
 
-            data[index] = finalValue;
-            data[index + 1] = finalValue;
-            data[index + 2] = finalValue;
+            data[index + 1] =
+                finalValue;
 
+            data[index + 2] =
+                finalValue;
         }
     }
 
-    ctx.putImageData(imageData, 0, 0);
+    ctx.putImageData(
+        image,
+        0,
+        0
+    );
 
     return canvas;
-}
-
-
-/* =========================================================
-   CREATE OCR IMAGE VARIANTS
-   ========================================================= */
-
-function createOCRVariants(sourceCanvas) {
-
-    const normal =
-        preprocessImage(
-            sourceCanvas,
-            "normal"
-        );
-
-    const sharpened =
-        sharpenCanvas(normal);
-
-    const threshold =
-        preprocessImage(
-            sourceCanvas,
-            "threshold"
-        );
-
-    return {
-        normal: sharpened,
-        threshold: threshold
-    };
 }
 
 
@@ -455,202 +447,163 @@ function createOCRVariants(sourceCanvas) {
    CANVAS TO BLOB
    ========================================================= */
 
-function canvasToBlob(canvas) {
+function canvasToBlob(
+    canvas
+) {
 
-    return new Promise((resolve, reject) => {
+    return new Promise(
+        function(resolve, reject) {
 
-        canvas.toBlob(
-            function(blob) {
+            canvas.toBlob(
+                function(blob) {
 
-                if (!blob) {
+                    if (!blob) {
 
-                    reject(
-                        new Error(
-                            "Could not create image."
-                        )
-                    );
+                        reject(
+                            new Error(
+                                "Could not create image."
+                            )
+                        );
 
-                    return;
-                }
+                        return;
+                    }
 
-                resolve(blob);
-
-            },
-            "image/jpeg",
-            0.95
-        );
-
-    });
-
-}
-
-
-/* =========================================================
-   OCR IMAGE
-   ========================================================= */
-
-async function recognizeImage(image) {
-
-    const worker =
-        await initializeOCR();
-
-    const result =
-        await worker.recognize(image);
-
-    return normalizeText(
-        result.data.text
+                    resolve(blob);
+                },
+                "image/jpeg",
+                0.95
+            );
+        }
     );
 }
 
 
 /* =========================================================
-   OCR WITH TWO IMAGE VERSIONS
+   OCR VARIANTS
    ========================================================= */
 
-async function performOCR(sourceCanvas) {
-
-    const variants =
-        createOCRVariants(sourceCanvas);
-
-
-    const normalBlob =
-        await canvasToBlob(
-            variants.normal
-        );
-
-
-    let text =
-        await recognizeImage(
-            normalBlob
-        );
-
-
-    /*
-       If the first OCR result is weak,
-       run the threshold version too.
-    */
-
-    if (
-        text.length < 80 ||
-        !containsImportantPayslipWords(text)
-    ) {
-
-        const thresholdBlob =
-            await canvasToBlob(
-                variants.threshold
-            );
-
-
-        const secondText =
-            await recognizeImage(
-                thresholdBlob
-            );
-
-
-        if (
-            secondText.length >
-            text.length
-        ) {
-
-            text = secondText;
-
-        }
-
-    }
-
-
-    return text;
-}
-
-
-/* =========================================================
-   CHECK OCR RESULT
-   ========================================================= */
-
-function containsImportantPayslipWords(text) {
+function containsImportantPayslipWords(
+    text
+) {
 
     const upper =
         String(text || "")
             .toUpperCase();
 
-
     const words = [
-
         "GROSS",
         "SALARY",
         "PENSION",
         "NHF",
         "NHIS",
         "ALLOWANCE",
-        "PAYE",
         "EARNINGS",
         "DEDUCTION"
-
     ];
-
 
     let matches = 0;
 
+    for (
+        const word of words
+    ) {
 
-    for (const word of words) {
+        if (
+            upper.includes(word)
+        ) {
 
-        if (upper.includes(word)) {
             matches++;
         }
-
     }
-
 
     return matches >= 2;
 }
 
 
+async function performOCR(
+    sourceCanvas
+) {
+
+    const normal =
+        sharpenCanvas(
+            preprocessImage(
+                sourceCanvas,
+                "normal"
+            )
+        );
+
+    let text =
+        await recognizeImage(
+            await canvasToBlob(
+                normal
+            )
+        );
+
+    /*
+     * If normal OCR is weak,
+     * try threshold OCR.
+     */
+
+    if (
+        text.length < 80 ||
+        !containsImportantPayslipWords(
+            text
+        )
+    ) {
+
+        const threshold =
+            preprocessImage(
+                sourceCanvas,
+                "threshold"
+            );
+
+        const secondText =
+            await recognizeImage(
+                await canvasToBlob(
+                    threshold
+                )
+            );
+
+        if (
+            secondText.length >
+            text.length
+        ) {
+
+            text =
+                secondText;
+        }
+    }
+
+    return text;
+}
 /* =========================================================
    MONEY EXTRACTION
    ========================================================= */
 
-function extractMoney(text) {
-
-    if (!text) {
-        return [];
-    }
-
-
-    const cleaned =
-        String(text)
-            .replace(/₦/g, " ")
-            .replace(/NGN/gi, " ")
-            .replace(/\r/g, "\n");
-
+function extractMoney(
+    text
+) {
 
     const matches =
-        cleaned.match(
-            /\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b|\b\d+(?:\.\d{1,2})?\b/g
-        );
-
-
-    if (!matches) {
-        return [];
-    }
-
+        String(text || "")
+            .replace(/₦/g, " ")
+            .replace(/NGN/gi, " ")
+            .match(
+                /\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b|\b\d+(?:\.\d{1,2})?\b/g
+            ) || [];
 
     return matches
-        .map(value => {
-
-            const number =
-                numberValue(value);
-
-            return {
-
-                raw: value,
-
-                value: number
-
-            };
-
-        })
-        .filter(item => item.value > 0);
-
+        .map(
+            function(value) {
+                return numberValue(
+                    value
+                );
+            }
+        )
+        .filter(
+            function(value) {
+                return value > 0;
+            }
+        );
 }
 
 
@@ -660,75 +613,67 @@ function extractMoney(text) {
 
 function findValueNearLabel(
     text,
-    labelPatterns
+    labels
 ) {
 
     const lines =
         String(text || "")
             .split("\n")
-            .map(line => line.trim())
+            .map(
+                function(line) {
+                    return line.trim();
+                }
+            )
             .filter(Boolean);
 
-
-    for (let i = 0; i < lines.length; i++) {
-
-        const line =
-            lines[i];
-
+    for (
+        let i = 0;
+        i < lines.length;
+        i++
+    ) {
 
         const upper =
-            line.toUpperCase();
+            lines[i].toUpperCase();
 
-
-        let matched = false;
-
-
-        for (const pattern of labelPatterns) {
-
-            if (
-                upper.includes(
-                    pattern.toUpperCase()
-                )
-            ) {
-
-                matched = true;
-                break;
-
-            }
-
-        }
-
+        const matched =
+            labels.some(
+                function(label) {
+                    return upper.includes(
+                        label
+                    );
+                }
+            );
 
         if (!matched) {
             continue;
         }
 
-
         /*
-          First look for a number on the same line.
-        */
+         * Number on same line.
+         */
 
         const sameLine =
-            extractMoney(line);
+            extractMoney(
+                lines[i]
+            );
 
-
-        if (sameLine.length > 0) {
+        if (
+            sameLine.length
+        ) {
 
             return sameLine[
                 sameLine.length - 1
-            ].value;
-
+            ];
         }
 
-
         /*
-          If no number is on the same line,
-          check the next two lines.
-        */
+         * Check next two lines.
+         */
 
         for (
             let j = i + 1;
-            j <= i + 2 && j < lines.length;
+            j <= i + 2 &&
+            j < lines.length;
             j++
         ) {
 
@@ -737,17 +682,14 @@ function findValueNearLabel(
                     lines[j]
                 );
 
+            if (
+                nearby.length
+            ) {
 
-            if (nearby.length > 0) {
-
-                return nearby[0].value;
-
+                return nearby[0];
             }
-
         }
-
     }
-
 
     return 0;
 }
@@ -757,16 +699,13 @@ function findValueNearLabel(
    EXTRACT PAYSLIP DATA
    ========================================================= */
 
-function extractPayslipData(text) {
+function extractPayslipData(
+    text
+) {
 
     const upper =
         String(text || "")
             .toUpperCase();
-
-
-    /*
-       Gross salary
-    */
 
     let gross =
         findValueNearLabel(
@@ -782,59 +721,6 @@ function extractPayslipData(text) {
             ]
         );
 
-
-    /*
-       Pension
-    */
-
-    let pension =
-        findValueNearLabel(
-            upper,
-            [
-                "PENSION",
-                "PEN",
-                "PENSION DEDUCTION"
-            ]
-        );
-
-
-    /*
-       NHF
-    */
-
-    let nhf =
-        findValueNearLabel(
-            upper,
-            [
-                "NHF",
-                "NATIONAL HOUSING FUND"
-            ]
-        );
-
-
-    /*
-       NHIS
-    */
-
-    let nhis =
-        findValueNearLabel(
-            upper,
-            [
-                "NHIS",
-                "NATIONAL HEALTH INSURANCE",
-                "HEALTH INSURANCE"
-            ]
-        );
-
-
-    /*
-       Some payslips use "Basic Salary"
-       instead of Gross Salary.
-
-       We don't immediately use it as gross,
-       because gross is preferable.
-    */
-
     if (!gross) {
 
         gross =
@@ -846,27 +732,48 @@ function extractPayslipData(text) {
                     "TAXABLE GROSS"
                 ]
             );
-
     }
 
+    const pension =
+        findValueNearLabel(
+            upper,
+            [
+                "PENSION DEDUCTION",
+                "PENSION",
+                "PEN"
+            ]
+        );
+
+    const nhf =
+        findValueNearLabel(
+            upper,
+            [
+                "NATIONAL HOUSING FUND",
+                "NHF"
+            ]
+        );
+
+    const nhis =
+        findValueNearLabel(
+            upper,
+            [
+                "NATIONAL HEALTH INSURANCE",
+                "NHIS",
+                "HEALTH INSURANCE"
+            ]
+        );
 
     return {
-
         gross: gross,
-
         pension: pension,
-
         nhf: nhf,
-
         nhis: nhis
-
     };
-
 }
 
 
 /* =========================================================
-   DISPLAY OCR RESULT
+   DISPLAY PAYSLIP RESULT
    ========================================================= */
 
 function displayPayslipResult(
@@ -875,13 +782,13 @@ function displayPayslipResult(
 ) {
 
     const result =
-        document.getElementById("result");
-
+        document.getElementById(
+            "result"
+        );
 
     if (!result) {
         return;
     }
-
 
     if (!data.gross) {
 
@@ -915,15 +822,15 @@ function displayPayslipResult(
                 <pre style="
                     white-space:pre-wrap;
                     margin-top:10px;
-                ">${escapeHTML(ocrText)}</pre>
+                ">${escapeHTML(
+                    ocrText
+                )}</pre>
 
             </details>
-
         `;
 
         return;
     }
-
 
     const rent =
         numberValue(
@@ -932,33 +839,16 @@ function displayPayslipResult(
             )?.value
         );
 
-
-    const employerHouse =
+    const employerHousing =
         document.getElementById(
             "employerHouse"
         )?.checked || false;
 
-
-    let rentReliefAnnual = 0;
-
-
-    if (
-        rent > 0 &&
-        !employerHouse
-    ) {
-
-        rentReliefAnnual =
-            Math.min(
-                rent * 0.20,
-                500000
-            );
-
-    }
-
-
-    const rentReliefMonthly =
-        rentReliefAnnual / 12;
-
+    const rentReliefAnnual =
+        calculateRentRelief(
+            rent,
+            employerHousing
+        );
 
     const paye =
         computePAYE(
@@ -966,9 +856,8 @@ function displayPayslipResult(
             data.pension,
             data.nhf,
             data.nhis,
-            rentReliefMonthly
+            rentReliefAnnual / 12
         );
-
 
     result.innerHTML = `
 
@@ -1009,7 +898,9 @@ function displayPayslipResult(
 
             <tr>
                 <td>Rent Relief Applied</td>
-                <td>${money(rentReliefAnnual)}</td>
+                <td>${money(
+                    rentReliefAnnual
+                )}</td>
             </tr>
 
             <tr>
@@ -1035,96 +926,88 @@ function displayPayslipResult(
             <pre style="
                 white-space:pre-wrap;
                 margin-top:10px;
-            ">${escapeHTML(ocrText)}</pre>
+            ">${escapeHTML(
+                ocrText
+            )}</pre>
 
         </details>
-
     `;
-
 }
 
 
 /* =========================================================
-   ESCAPE HTML
+   IMAGE FILE TO CANVAS
    ========================================================= */
 
-function escapeHTML(value) {
+function imageFileToCanvas(
+    file
+) {
 
-    return String(value || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    return new Promise(
+        function(resolve, reject) {
 
-}
+            const image =
+                new Image();
 
+            const url =
+                URL.createObjectURL(
+                    file
+                );
 
-/* =========================================================
-   CREATE CANVAS FROM IMAGE FILE
-   ========================================================= */
+            image.onload =
+                function() {
 
-function imageFileToCanvas(file) {
+                    const canvas =
+                        document.createElement(
+                            "canvas"
+                        );
 
-    return new Promise((resolve, reject) => {
+                    canvas.width =
+                        image.naturalWidth;
 
-        const image =
-            new Image();
+                    canvas.height =
+                        image.naturalHeight;
 
-        const url =
-            URL.createObjectURL(file);
+                    const ctx =
+                        canvas.getContext(
+                            "2d"
+                        );
 
+                    ctx.drawImage(
+                        image,
+                        0,
+                        0,
+                        canvas.width,
+                        canvas.height
+                    );
 
-        image.onload = function() {
+                    URL.revokeObjectURL(
+                        url
+                    );
 
-            const canvas =
-                document.createElement("canvas");
+                    resolve(
+                        canvas
+                    );
+                };
 
+            image.onerror =
+                function() {
 
-            canvas.width =
-                image.naturalWidth;
+                    URL.revokeObjectURL(
+                        url
+                    );
 
-            canvas.height =
-                image.naturalHeight;
+                    reject(
+                        new Error(
+                            "Could not read image."
+                        )
+                    );
+                };
 
-
-            const ctx =
-                canvas.getContext("2d");
-
-
-            ctx.drawImage(
-                image,
-                0,
-                0,
-                canvas.width,
-                canvas.height
-            );
-
-
-            URL.revokeObjectURL(url);
-
-            resolve(canvas);
-
-        };
-
-
-        image.onerror = function() {
-
-            URL.revokeObjectURL(url);
-
-            reject(
-                new Error(
-                    "Could not read image."
-                )
-            );
-
-        };
-
-
-        image.src = url;
-
-    });
-
+            image.src =
+                url;
+        }
+    );
 }
 
 
@@ -1132,36 +1015,36 @@ function imageFileToCanvas(file) {
    PROCESS IMAGE FILE
    ========================================================= */
 
-async function processImageFile(file) {
+async function processImageFile(
+    file
+) {
 
     if (!file) {
 
         throw new Error(
             "No image was selected."
         );
-
     }
 
-
     const canvas =
-        await imageFileToCanvas(file);
+        await imageFileToCanvas(
+            file
+        );
 
-
-    const ocrText =
-        await performOCR(canvas);
-
+    const text =
+        await performOCR(
+            canvas
+        );
 
     return {
 
-        text: ocrText,
+        text: text,
 
         data:
             extractPayslipData(
-                ocrText
+                text
             )
-
     };
-
 }
 
 
@@ -1176,22 +1059,15 @@ async function processSelectedFile() {
             "loading"
         );
 
-
     const result =
         document.getElementById(
             "result"
         );
 
-
     try {
 
         let file =
             selectedFile;
-
-
-        /*
-          If the user selected a gallery file.
-        */
 
         if (!file) {
 
@@ -1200,29 +1076,20 @@ async function processSelectedFile() {
                     "galleryInput"
                 );
 
-
             if (
                 input &&
                 input.files &&
-                input.files.length > 0
+                input.files.length
             ) {
 
                 file =
                     input.files[0];
-
             }
-
         }
 
-
-        /*
-          If a camera capture exists,
-          use that.
-        */
-
         if (
-            capturedCameraBlob &&
-            !file
+            !file &&
+            capturedCameraBlob
         ) {
 
             file =
@@ -1236,9 +1103,7 @@ async function processSelectedFile() {
                             "image/jpeg"
                     }
                 );
-
         }
-
 
         if (!file) {
 
@@ -1248,71 +1113,66 @@ async function processSelectedFile() {
 
                     <div class="warning">
 
-                        Please select a payslip image,
-                        PDF, or scan one with the camera.
+                    Please select a payslip image,
+                    PDF, or scan one with the camera.
 
                     </div>
-
                 `;
-
             }
 
             return;
-
         }
-
 
         if (loading) {
 
             loading.textContent =
                 "Preparing payslip...";
-
         }
-
 
         /*
-          PDF handling.
-        */
+         * PDF
+         */
 
         if (
-            file.type === "application/pdf" ||
-            file.name.toLowerCase().endsWith(".pdf")
+            file.type ===
+            "application/pdf" ||
+            file.name
+                .toLowerCase()
+                .endsWith(".pdf")
         ) {
 
-            await processPDF(file);
+            await processPDF(
+                file
+            );
 
             return;
-
         }
 
+        /*
+         * Image
+         */
 
         if (loading) {
 
             loading.textContent =
                 "Enhancing image for OCR...";
-
         }
-
 
         const response =
             await processImageFile(
                 file
             );
 
-
         displayPayslipResult(
             response.data,
             response.text
         );
 
-
         if (loading) {
 
             loading.textContent =
                 "OCR completed.";
-
         }
-
 
     } catch (error) {
 
@@ -1321,14 +1181,9 @@ async function processSelectedFile() {
             error
         );
 
-
         if (loading) {
-
-            loading.textContent =
-                "";
-
+            loading.textContent = "";
         }
-
 
         if (result) {
 
@@ -1348,13 +1203,9 @@ async function processSelectedFile() {
                     )}
 
                 </div>
-
             `;
-
         }
-
     }
-
 }
 
 
@@ -1362,7 +1213,9 @@ async function processSelectedFile() {
    PDF PROCESSING
    ========================================================= */
 
-async function processPDF(file) {
+async function processPDF(
+    file
+) {
 
     const loading =
         document.getElementById(
@@ -1374,38 +1227,39 @@ async function processPDF(file) {
             "result"
         );
 
-
     try {
 
-        if (!window.pdfjsLib) {
+        if (
+            !window.pdfjsLib
+        ) {
 
             throw new Error(
                 "PDF reader could not be loaded."
             );
-
         }
 
-
-        pdfjsLib.GlobalWorkerOptions.workerSrc =
+        pdfjsLib
+            .GlobalWorkerOptions
+            .workerSrc =
             "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-
-        const arrayBuffer =
+        const buffer =
             await file.arrayBuffer();
 
-
         const pdf =
-            await pdfjsLib.getDocument({
-                data: arrayBuffer
-            }).promise;
+            await pdfjsLib
+                .getDocument({
+                    data: buffer
+                })
+                .promise;
 
-
-        let combinedText = "";
-
+        let combinedText =
+            "";
 
         for (
             let pageNumber = 1;
-            pageNumber <= pdf.numPages;
+            pageNumber <=
+            pdf.numPages;
             pageNumber++
         ) {
 
@@ -1413,27 +1267,22 @@ async function processPDF(file) {
 
                 loading.textContent =
                     `Processing PDF page ${pageNumber} of ${pdf.numPages}...`;
-
             }
-
 
             const page =
                 await pdf.getPage(
                     pageNumber
                 );
 
-
             const viewport =
                 page.getViewport({
                     scale: 2.5
                 });
 
-
             const canvas =
                 document.createElement(
                     "canvas"
                 );
-
 
             canvas.width =
                 viewport.width;
@@ -1441,12 +1290,10 @@ async function processPDF(file) {
             canvas.height =
                 viewport.height;
 
-
             const context =
                 canvas.getContext(
                     "2d"
                 );
-
 
             await page.render({
 
@@ -1458,45 +1305,36 @@ async function processPDF(file) {
 
             }).promise;
 
-
             const pageText =
                 await performOCR(
                     canvas
                 );
 
-
             combinedText +=
                 "\n" +
                 pageText;
-
         }
-
 
         combinedText =
             normalizeText(
                 combinedText
             );
 
-
         const data =
             extractPayslipData(
                 combinedText
             );
-
 
         displayPayslipResult(
             data,
             combinedText
         );
 
-
         if (loading) {
 
             loading.textContent =
                 "PDF OCR completed.";
-
         }
-
 
     } catch (error) {
 
@@ -1505,40 +1343,32 @@ async function processPDF(file) {
             error
         );
 
-
         if (result) {
 
             result.innerHTML = `
 
                 <div class="error">
 
+                    <strong>
                     PDF processing failed.
+                    </strong>
 
                     <br><br>
 
                     ${escapeHTML(
-                        error.message
+                        error.message ||
+                        "Please try again."
                     )}
 
                 </div>
-
             `;
-
         }
-
 
         if (loading) {
-
-            loading.textContent =
-                "";
-
+            loading.textContent = "";
         }
-
     }
-
 }
-
-
 /* =========================================================
    GALLERY INPUT
    ========================================================= */
@@ -1552,7 +1382,6 @@ document.addEventListener(
                 "galleryInput"
             );
 
-
         if (galleryInput) {
 
             galleryInput.addEventListener(
@@ -1561,7 +1390,7 @@ document.addEventListener(
 
                     if (
                         this.files &&
-                        this.files.length > 0
+                        this.files.length
                     ) {
 
                         selectedFile =
@@ -1569,14 +1398,10 @@ document.addEventListener(
 
                         capturedCameraBlob =
                             null;
-
                     }
-
                 }
             );
-
         }
-
     }
 );
 
@@ -1592,36 +1417,29 @@ async function openCameraScanner() {
             "cameraModal"
         );
 
-
     const video =
         document.getElementById(
             "cameraVideo"
         );
-
 
     const status =
         document.getElementById(
             "cameraStatus"
         );
 
-
-    if (!modal || !video) {
+    if (
+        !modal ||
+        !video
+    ) {
 
         alert(
             "Camera interface could not be loaded."
         );
 
         return;
-
     }
 
-
     try {
-
-        /*
-          Camera must be accessed through HTTPS
-          or localhost.
-        */
 
         if (
             !window.isSecureContext
@@ -1630,9 +1448,7 @@ async function openCameraScanner() {
             throw new Error(
                 "Camera access requires HTTPS. Please open the website using https://."
             );
-
         }
-
 
         if (
             !navigator.mediaDevices ||
@@ -1642,14 +1458,11 @@ async function openCameraScanner() {
             throw new Error(
                 "This browser does not support direct camera access."
             );
-
         }
-
 
         modal.classList.add(
             "active"
         );
-
 
         if (status) {
 
@@ -1658,49 +1471,42 @@ async function openCameraScanner() {
 
             status.textContent =
                 "Starting camera...";
-
         }
 
-
-        /*
-          Rear camera with high resolution.
-        */
-
         cameraStream =
-            await navigator.mediaDevices.getUserMedia({
+            await navigator.mediaDevices
+                .getUserMedia({
 
-                video: {
+                    video: {
 
-                    facingMode: {
-                        ideal: "environment"
+                        facingMode: {
+                            ideal:
+                                "environment"
+                        },
+
+                        width: {
+                            ideal:
+                                1920
+                        },
+
+                        height: {
+                            ideal:
+                                1080
+                        },
+
+                        frameRate: {
+                            ideal: 30,
+                            max: 30
+                        }
                     },
 
-                    width: {
-                        ideal: 1920
-                    },
-
-                    height: {
-                        ideal: 1080
-                    },
-
-                    frameRate: {
-                        ideal: 30,
-                        max: 30
-                    }
-
-                },
-
-                audio: false
-
-            });
-
+                    audio: false
+                });
 
         video.srcObject =
             cameraStream;
 
-
         await video.play();
-
 
         if (status) {
 
@@ -1716,9 +1522,7 @@ async function openCameraScanner() {
                 },
                 2500
             );
-
         }
-
 
     } catch (error) {
 
@@ -1727,32 +1531,27 @@ async function openCameraScanner() {
             error
         );
 
+        stopCameraStream();
 
         modal.classList.remove(
             "active"
         );
 
-
         if (status) {
-
             status.style.display =
                 "none";
-
         }
-
 
         alert(
             error.message ||
             "Unable to access camera."
         );
-
     }
-
 }
 
 
 /* =========================================================
-   CAPTURE PAYSLIP FROM LIVE CAMERA
+   CAPTURE CAMERA IMAGE
    ========================================================= */
 
 async function capturePayslipImage() {
@@ -1762,18 +1561,15 @@ async function capturePayslipImage() {
             "cameraVideo"
         );
 
-
     const canvas =
         document.getElementById(
             "cameraCanvas"
         );
 
-
     const status =
         document.getElementById(
             "cameraStatus"
         );
-
 
     if (
         !video ||
@@ -1781,9 +1577,7 @@ async function capturePayslipImage() {
     ) {
 
         return;
-
     }
-
 
     if (
         !video.videoWidth ||
@@ -1795,9 +1589,7 @@ async function capturePayslipImage() {
         );
 
         return;
-
     }
-
 
     try {
 
@@ -1808,13 +1600,11 @@ async function capturePayslipImage() {
 
             status.textContent =
                 "Capturing payslip...";
-
         }
 
-
         /*
-          Use the actual camera resolution.
-        */
+         * Capture actual camera resolution.
+         */
 
         canvas.width =
             video.videoWidth;
@@ -1822,21 +1612,16 @@ async function capturePayslipImage() {
         canvas.height =
             video.videoHeight;
 
-
-        const ctx =
+        const context =
             canvas.getContext(
                 "2d",
                 {
-                    willReadFrequently: true
+                    willReadFrequently:
+                        true
                 }
             );
 
-
-        /*
-          Draw the high-resolution camera frame.
-        */
-
-        ctx.drawImage(
+        context.drawImage(
             video,
             0,
             0,
@@ -1844,16 +1629,10 @@ async function capturePayslipImage() {
             canvas.height
         );
 
-
-        /*
-          Convert directly to JPEG.
-        */
-
         capturedCameraBlob =
             await canvasToBlob(
                 canvas
             );
-
 
         selectedFile =
             new File(
@@ -1867,48 +1646,39 @@ async function capturePayslipImage() {
                 }
             );
 
-
         /*
-          Stop camera immediately after capture.
-        */
+         * Stop camera immediately.
+         */
 
         stopCameraStream();
-
 
         const modal =
             document.getElementById(
                 "cameraModal"
             );
 
-
         if (modal) {
 
             modal.classList.remove(
                 "active"
             );
-
         }
-
 
         const loading =
             document.getElementById(
                 "loading"
             );
 
-
         const result =
             document.getElementById(
                 "result"
             );
 
-
         if (loading) {
 
             loading.textContent =
                 "Enhancing camera image and reading payslip...";
-
         }
-
 
         if (result) {
 
@@ -1923,69 +1693,74 @@ async function capturePayslipImage() {
                     Enhancing image and running OCR...
 
                 </div>
-
             `;
-
         }
 
-
         /*
-          Run OCR immediately.
-        */
+         * Use exactly the same OCR
+         * function used by PDF and
+         * uploaded images.
+         */
 
         const response =
             await processImageFile(
                 selectedFile
             );
 
-
         displayPayslipResult(
             response.data,
             response.text
         );
 
-
         if (loading) {
 
             loading.textContent =
                 "Camera OCR completed.";
-
         }
-
 
     } catch (error) {
 
         console.error(
-            "Camera capture error:",
+            "Camera OCR error:",
             error
         );
 
-
         stopCameraStream();
 
-
-        const modal =
-            document.getElementById(
+        document
+            .getElementById(
                 "cameraModal"
-            );
-
-
-        if (modal) {
-
-            modal.classList.remove(
+            )
+            ?.classList.remove(
                 "active"
             );
 
+        const result =
+            document.getElementById(
+                "result"
+            );
+
+        if (result) {
+
+            result.innerHTML = `
+
+                <div class="error">
+
+                    <strong>
+                    Camera OCR failed.
+                    </strong>
+
+                    <br><br>
+
+                    ${escapeHTML(
+                        error.message ||
+                        "Unable to process camera image."
+                    )}
+
+                </div>
+            `;
         }
-
-
-        alert(
-            error.message ||
-            "Unable to process camera image."
-        );
-
     }
-
 }
 
 
@@ -1997,63 +1772,51 @@ function closeCameraScanner() {
 
     stopCameraStream();
 
-
     const modal =
         document.getElementById(
             "cameraModal"
         );
-
 
     if (modal) {
 
         modal.classList.remove(
             "active"
         );
-
     }
-
 }
 
 
 /* =========================================================
-   STOP CAMERA STREAM
+   STOP CAMERA
    ========================================================= */
 
 function stopCameraStream() {
 
-    if (!cameraStream) {
-        return;
+    if (cameraStream) {
+
+        cameraStream
+            .getTracks()
+            .forEach(
+                function(track) {
+
+                    track.stop();
+                }
+            );
     }
-
-
-    cameraStream
-        .getTracks()
-        .forEach(
-            function(track) {
-
-                track.stop();
-
-            }
-        );
-
 
     cameraStream =
         null;
-
 
     const video =
         document.getElementById(
             "cameraVideo"
         );
 
-
     if (video) {
 
         video.srcObject =
             null;
-
     }
-
 }
 
 
@@ -2063,152 +1826,112 @@ function stopCameraStream() {
 
 function applyRentRelief() {
 
-    const rentInput =
-        document.getElementById(
-            "rentAmount"
+    const rent =
+        numberValue(
+            document.getElementById(
+                "rentAmount"
+            )?.value
         );
 
-
-    const employerHouse =
+    const employerHousing =
         document.getElementById(
             "employerHouse"
-        );
-
-
-    const rentCheck =
-        document.getElementById(
-            "rentCheck"
-        );
-
+        )?.checked || false;
 
     const result =
         document.getElementById(
             "result"
         );
 
-
-    const rent =
-        numberValue(
-            rentInput?.value
-        );
-
-
-    const housing =
-        employerHouse?.checked ||
-        false;
-
-
-    /*
-      Employer-provided accommodation
-      means no rent relief.
-    */
-
-    if (housing) {
-
-        if (rentCheck) {
-            rentCheck.checked = false;
-        }
-
-
-        if (result) {
-
-            result.innerHTML = `
-
-                <div class="warning">
-
-                    <strong>
-                    Rent Relief: ₦0
-                    </strong>
-
-                    <br><br>
-
-                    Employer-provided accommodation
-                    means rent relief does not apply.
-
-                </div>
-
-            `;
-
-        }
-
-        return;
-
-    }
-
-
-    if (rent <= 0) {
-
-        if (result) {
-
-            result.innerHTML = `
-
-                <div class="warning">
-
-                    No rent amount was entered.
-
-                    <br><br>
-
-                    Rent relief is ₦0.
-
-                </div>
-
-            `;
-
-        }
-
-        return;
-
-    }
-
-
-    /*
-      Current rule:
-      20% of annual rent, maximum ₦500,000.
-    */
-
     const relief =
-        Math.min(
-            rent * 0.20,
-            500000
+        calculateRentRelief(
+            rent,
+            employerHousing
         );
 
+    if (!result) {
+        return;
+    }
 
-    if (result) {
+    if (
+        employerHousing
+    ) {
 
         result.innerHTML = `
 
-            <div class="success">
+            <div class="warning">
 
                 <strong>
-                Rent relief calculated successfully.
+                Rent Relief: ₦0
                 </strong>
 
                 <br><br>
 
-                Annual Rent:
-                <strong>${money(rent)}</strong>
+                Employer-provided accommodation
+                means rent relief does not apply.
 
-                <br>
+            </div>
+        `;
 
-                Rent Relief Applied:
-                <strong>${money(relief)}</strong>
+        return;
+    }
+
+    if (
+        rent <= 0
+    ) {
+
+        result.innerHTML = `
+
+            <div class="warning">
+
+                No rent amount was entered.
 
                 <br><br>
 
-                Monthly equivalent used for PAYE:
-                <strong>${money(relief / 12)}</strong>
+                Rent relief is ₦0.
 
             </div>
-
         `;
 
+        return;
     }
 
+    result.innerHTML = `
+
+        <div class="success">
+
+            <strong>
+            Rent relief calculated successfully.
+            </strong>
+
+            <br><br>
+
+            Annual Rent:
+            <strong>
+            ${money(rent)}
+            </strong>
+
+            <br>
+
+            Rent Relief Applied:
+            <strong>
+            ${money(relief)}
+            </strong>
+
+            <br><br>
+
+            Monthly equivalent used for PAYE:
+            <strong>
+            ${money(relief / 12)}
+            </strong>
+
+        </div>
+    `;
 }
 
 
 /* =========================================================
-   EXCEL PAYROLL PROCESSING
+   EXCEL PAYROLL
    ========================================================= */
 
 async function processExcel() {
@@ -2218,18 +1941,15 @@ async function processExcel() {
             "excelFile"
         );
 
-
     const preview =
         document.getElementById(
             "excelPreview"
         );
 
-
     const downloadButton =
         document.getElementById(
             "downloadBtn"
         );
-
 
     if (
         !input ||
@@ -2246,231 +1966,166 @@ async function processExcel() {
                     Please select an Excel payroll file.
 
                 </div>
-
             `;
-
         }
 
         return;
-
     }
-
 
     try {
 
         const file =
             input.files[0];
 
-
-        const arrayBuffer =
+        const buffer =
             await file.arrayBuffer();
-
 
         const workbook =
             XLSX.read(
-                arrayBuffer,
+                buffer,
                 {
-                    type: "array"
+                    type:
+                        "array"
                 }
             );
 
-
         const sheetName =
             workbook.SheetNames[0];
-
 
         const worksheet =
             workbook.Sheets[
                 sheetName
             ];
 
-
         const rows =
             XLSX.utils.sheet_to_json(
                 worksheet,
                 {
-                    defval: ""
+                    defval:
+                        ""
                 }
             );
 
-
-        if (!rows.length) {
+        if (
+            !rows.length
+        ) {
 
             throw new Error(
                 "The Excel file contains no payroll records."
             );
-
         }
 
+        processedData =
+            rows.map(
+                function(row) {
 
-        processedData = [];
+                    const employeeName =
+                        row["Employee Name"] ||
+                        row["Name"] ||
+                        "";
 
+                    const gross =
+                        numberValue(
+                            row["Gross Salary"]
+                        );
 
-        for (
-            const row of rows
-        ) {
+                    const pension =
+                        numberValue(
+                            row["Pension"]
+                        );
 
-            const employeeName =
-                row["Employee Name"] ||
-                row["Name"] ||
-                "";
+                    const nhf =
+                        numberValue(
+                            row["NHF"]
+                        );
 
+                    const nhis =
+                        numberValue(
+                            row["NHIS"]
+                        );
 
-            const gross =
-                numberValue(
-                    row["Gross Salary"]
-                );
+                    const rent =
+                        numberValue(
+                            row["Rent"]
+                        );
 
+                    const housingText =
+                        String(
+                            row[
+                                "Employer Housing"
+                            ] || ""
+                        )
+                        .trim()
+                        .toLowerCase();
 
-            const pension =
-                numberValue(
-                    row["Pension"]
-                );
+                    const employerHousing =
+                        housingText === "yes" ||
+                        housingText === "y" ||
+                        housingText === "true" ||
+                        housingText === "1";
 
+                    const rentReliefAnnual =
+                        calculateRentRelief(
+                            rent,
+                            employerHousing
+                        );
 
-            const nhf =
-                numberValue(
-                    row["NHF"]
-                );
+                    const paye =
+                        computePAYE(
+                            gross,
+                            pension,
+                            nhf,
+                            nhis,
+                            rentReliefAnnual / 12
+                        );
 
+                    return {
 
-            const nhis =
-                numberValue(
-                    row["NHIS"]
-                );
+                        "Employee Name":
+                            employeeName,
 
+                        "Gross Salary":
+                            gross,
 
-            const rent =
-                numberValue(
-                    row["Rent"]
-                );
+                        "Pension":
+                            pension,
 
+                        "NHF":
+                            nhf,
 
-            const employerHousingValue =
-                row["Employer Housing"];
+                        "NHIS":
+                            nhis,
 
+                        "Rent":
+                            rent,
 
-            const employerHousing =
-                String(
-                    employerHousingValue ||
-                    ""
-                )
-                    .trim()
-                    .toLowerCase();
+                        "Employer Housing":
+                            employerHousing
+                                ? "Yes"
+                                : "No",
 
+                        "Rent Relief Applied":
+                            rentReliefAnnual,
 
-            const hasEmployerHousing =
-                employerHousing === "yes" ||
-                employerHousing === "y" ||
-                employerHousing === "true" ||
-                employerHousing === "1";
-
-
-            /*
-              Rent > 0 automatically means
-              rent has been declared.
-
-              No Renting column is required.
-            */
-
-            let rentReliefAnnual = 0;
-
-
-            if (
-                rent > 0 &&
-                !hasEmployerHousing
-            ) {
-
-                rentReliefAnnual =
-                    Math.min(
-                        rent * 0.20,
-                        500000
-                    );
-
-            }
-
-
-            /*
-              Monthly relief is used internally
-              for monthly PAYE calculation.
-            */
-
-            const rentReliefMonthly =
-                rentReliefAnnual / 12;
-
-
-            const paye =
-                computePAYE(
-                    gross,
-                    pension,
-                    nhf,
-                    nhis,
-                    rentReliefMonthly
-                );
-
-
-            /*
-              Reconstruct the row from scratch.
-
-              This deliberately removes:
-              - Other Deductions
-              - Renting
-              - PAYE Deducted
-              - Old PAYE comparison fields
-
-              from the output.
-            */
-
-            processedData.push({
-
-                "Employee Name":
-                    employeeName,
-
-                "Gross Salary":
-                    gross,
-
-                "Pension":
-                    pension,
-
-                "NHF":
-                    nhf,
-
-                "NHIS":
-                    nhis,
-
-                "Rent":
-                    rent,
-
-                "Employer Housing":
-                    hasEmployerHousing
-                        ? "Yes"
-                        : "No",
-
-                "Rent Relief Applied":
-                    rentReliefAnnual,
-
-                "PAYE Under Current Tax Reform":
-                    Number(
-                        paye.toFixed(2)
-                    )
-
-            });
-
-        }
-
+                        "PAYE Under Current Tax Reform":
+                            Number(
+                                paye.toFixed(2)
+                            )
+                    };
+                }
+            );
 
         displayExcelPreview(
             processedData
         );
 
-
-        if (downloadButton) {
+        if (
+            downloadButton
+        ) {
 
             downloadButton.style.display =
                 "inline-block";
-
         }
-
 
     } catch (error) {
 
@@ -2478,7 +2133,6 @@ async function processExcel() {
             "Excel error:",
             error
         );
-
 
         if (preview) {
 
@@ -2497,13 +2151,9 @@ async function processExcel() {
                     )}
 
                 </div>
-
             `;
-
         }
-
     }
-
 }
 
 
@@ -2511,28 +2161,28 @@ async function processExcel() {
    DISPLAY EXCEL PREVIEW
    ========================================================= */
 
-function displayExcelPreview(data) {
+function displayExcelPreview(
+    data
+) {
 
     const preview =
         document.getElementById(
             "excelPreview"
         );
 
-
     if (!preview) {
         return;
     }
 
-
-    if (!data.length) {
+    if (
+        !data.length
+    ) {
 
         preview.innerHTML =
             "<p>No records found.</p>";
 
         return;
-
     }
-
 
     const columns = [
 
@@ -2548,36 +2198,42 @@ function displayExcelPreview(data) {
 
     ];
 
+    const moneyColumns = [
+
+        "Gross Salary",
+        "Pension",
+        "NHF",
+        "NHIS",
+        "Rent",
+        "Rent Relief Applied",
+        "PAYE Under Current Tax Reform"
+
+    ];
 
     let html =
-        "<div style='overflow-x:auto;'><table>";
-
-
-    html += "<thead><tr>";
-
+        "<div style='overflow-x:auto;'>" +
+        "<table>" +
+        "<thead><tr>";
 
     for (
         const column of columns
     ) {
 
         html +=
-            `<th>${escapeHTML(column)}</th>`;
-
+            `<th>${escapeHTML(
+                column
+            )}</th>`;
     }
 
-
-    html += "</tr></thead>";
-
-
-    html += "<tbody>";
-
+    html +=
+        "</tr></thead><tbody>";
 
     for (
         const row of data
     ) {
 
-        html += "<tr>";
-
+        html +=
+            "<tr>";
 
         for (
             const column of columns
@@ -2586,47 +2242,36 @@ function displayExcelPreview(data) {
             let value =
                 row[column];
 
-
             if (
-                [
-                    "Gross Salary",
-                    "Pension",
-                    "NHF",
-                    "NHIS",
-                    "Rent",
-                    "Rent Relief Applied",
-                    "PAYE Under Current Tax Reform"
-                ].includes(column)
+                moneyColumns.includes(
+                    column
+                )
             ) {
 
                 value =
                     money(value);
-
             }
 
-
             html +=
-                `<td>${escapeHTML(value)}</td>`;
-
+                `<td>${escapeHTML(
+                    value
+                )}</td>`;
         }
 
-
-        html += "</tr>";
-
+        html +=
+            "</tr>";
     }
 
-
-    html += "</tbody></table></div>";
-
+    html +=
+        "</tbody></table></div>";
 
     preview.innerHTML =
         html;
-
 }
 
 
 /* =========================================================
-   DOWNLOAD PROCESSED EXCEL
+   DOWNLOAD EXCEL
    ========================================================= */
 
 function downloadExcel() {
@@ -2641,19 +2286,15 @@ function downloadExcel() {
         );
 
         return;
-
     }
-
 
     const worksheet =
         XLSX.utils.json_to_sheet(
             processedData
         );
 
-
     const workbook =
         XLSX.utils.book_new();
-
 
     XLSX.utils.book_append_sheet(
         workbook,
@@ -2661,17 +2302,15 @@ function downloadExcel() {
         "PAYE Computation"
     );
 
-
     XLSX.writeFile(
         workbook,
         "PAYE_Computation_Current_Tax_Reform.xlsx"
     );
-
 }
 
 
 /* =========================================================
-   PAGE VISIBILITY
+   PAGE VISIBILITY / CLEANUP
    ========================================================= */
 
 document.addEventListener(
@@ -2683,23 +2322,16 @@ document.addEventListener(
         ) {
 
             stopCameraStream();
-
         }
-
     }
 );
 
-
-/* =========================================================
-   PAGE UNLOAD
-   ========================================================= */
 
 window.addEventListener(
     "beforeunload",
     function() {
 
         stopCameraStream();
-
     }
 );
 
