@@ -21,10 +21,16 @@ rel="stylesheet"
 
 <style>
 
+/* ================= GLOBAL ================= */
+
 *{
 box-sizing:border-box;
 margin:0;
 padding:0;
+}
+
+html{
+scroll-behavior:smooth;
 }
 
 body{
@@ -37,7 +43,12 @@ color:#1f2937;
 
 line-height:1.6;
 
+transition:
+background-color .25s ease,
+color .25s ease;
+
 }
+
 
 /* ================= NAVBAR ================= */
 
@@ -61,6 +72,10 @@ top:0;
 
 z-index:100;
 
+transition:
+background-color .25s ease,
+box-shadow .25s ease;
+
 }
 
 .logo{
@@ -71,7 +86,63 @@ font-weight:800;
 
 color:#1e40af;
 
+transition:color .25s ease;
+
 }
+
+.nav-actions{
+
+display:flex;
+
+align-items:center;
+
+gap:10px;
+
+}
+
+
+/* ================= THEME BUTTON ================= */
+
+.theme-toggle{
+
+border:none;
+
+background:#f1f5f9;
+
+color:#1f2937;
+
+padding:10px 14px;
+
+border-radius:9px;
+
+font-family:inherit;
+
+font-size:14px;
+
+font-weight:600;
+
+cursor:pointer;
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease,
+
+transform .2s ease;
+
+}
+
+.theme-toggle:hover{
+
+background:#e2e8f0;
+
+transform:translateY(-1px);
+
+}
+
+
+/* ================= NAV BUTTON ================= */
 
 .nav-btn{
 
@@ -87,13 +158,22 @@ border-radius:8px;
 
 font-weight:600;
 
+transition:
+
+background-color .2s ease,
+
+transform .2s ease;
+
 }
 
 .nav-btn:hover{
 
 background:#3b82f6;
 
+transform:translateY(-1px);
+
 }
+
 
 /* ================= HERO ================= */
 
@@ -111,6 +191,9 @@ linear-gradient(
 #f8fafc 100%
 );
 
+transition:
+background .25s ease;
+
 }
 
 .hero h1{
@@ -125,11 +208,15 @@ margin:auto;
 
 color:#111827;
 
+transition:color .25s ease;
+
 }
 
 .hero h1 span{
 
 color:#1e40af;
+
+transition:color .25s ease;
 
 }
 
@@ -142,6 +229,8 @@ margin:25px auto;
 font-size:18px;
 
 color:#6b7280;
+
+transition:color .25s ease;
 
 }
 
@@ -163,13 +252,22 @@ border-radius:10px;
 
 font-weight:700;
 
+transition:
+
+background-color .2s ease,
+
+transform .2s ease;
+
 }
 
 .hero-btn:hover{
 
 background:#3b82f6;
 
+transform:translateY(-2px);
+
 }
+
 
 /* ================= FEATURES ================= */
 
@@ -178,6 +276,8 @@ background:#3b82f6;
 padding:70px 8%;
 
 background:white;
+
+transition:background-color .25s ease;
 
 }
 
@@ -195,13 +295,20 @@ font-size:32px;
 
 margin-bottom:10px;
 
+color:#1f2937;
+
+transition:color .25s ease;
+
 }
 
 .section-title p{
 
 color:#6b7280;
 
+transition:color .25s ease;
+
 }
+
 
 /* ================= FEATURE GRID ================= */
 
@@ -230,7 +337,17 @@ background:#f8fafc;
 
 border:1px solid #e5e7eb;
 
-transition:.2s;
+transition:
+
+background-color .25s ease,
+
+border-color .25s ease,
+
+color .25s ease,
+
+transform .2s ease,
+
+box-shadow .2s ease;
 
 }
 
@@ -257,6 +374,10 @@ margin-bottom:10px;
 
 font-size:19px;
 
+color:#1f2937;
+
+transition:color .25s ease;
+
 }
 
 .feature p{
@@ -265,7 +386,10 @@ color:#6b7280;
 
 font-size:14px;
 
+transition:color .25s ease;
+
 }
+
 
 /* ================= HOW IT WORKS ================= */
 
@@ -274,6 +398,8 @@ font-size:14px;
 padding:70px 8%;
 
 background:#f8fafc;
+
+transition:background-color .25s ease;
 
 }
 
@@ -297,6 +423,22 @@ margin:auto;
 text-align:center;
 
 padding:25px;
+
+}
+
+.step h3{
+
+color:#1f2937;
+
+transition:color .25s ease;
+
+}
+
+.step p{
+
+color:#6b7280;
+
+transition:color .25s ease;
 
 }
 
@@ -324,6 +466,7 @@ font-weight:700;
 
 }
 
+
 /* ================= CTA ================= */
 
 .cta{
@@ -336,6 +479,8 @@ color:white;
 
 text-align:center;
 
+transition:background-color .25s ease;
+
 }
 
 .cta h2{
@@ -343,6 +488,8 @@ text-align:center;
 font-size:32px;
 
 margin-bottom:15px;
+
+color:white;
 
 }
 
@@ -372,13 +519,22 @@ text-decoration:none;
 
 font-weight:700;
 
+transition:
+
+background-color .2s ease,
+
+transform .2s ease;
+
 }
 
 .cta-btn:hover{
 
 background:#eff6ff;
 
+transform:translateY(-2px);
+
 }
+
 
 /* ================= FOOTER ================= */
 
@@ -394,7 +550,184 @@ padding:25px 8%;
 
 font-size:13px;
 
+transition:
+
+background-color .25s ease,
+
+color .25s ease;
+
 }
+
+
+/* =========================================================
+   DARK MODE
+   ========================================================= */
+
+body.dark-mode{
+
+background:#0f172a;
+
+color:#e5e7eb;
+
+}
+
+
+/* ================= DARK NAVBAR ================= */
+
+body.dark-mode .navbar{
+
+background:#111827;
+
+box-shadow:
+0 2px 10px rgba(0,0,0,.35);
+
+}
+
+body.dark-mode .logo{
+
+color:#60a5fa;
+
+}
+
+
+/* ================= DARK THEME BUTTON ================= */
+
+body.dark-mode .theme-toggle{
+
+background:#1e293b;
+
+color:#f8fafc;
+
+}
+
+body.dark-mode .theme-toggle:hover{
+
+background:#334155;
+
+}
+
+
+/* ================= DARK HERO ================= */
+
+body.dark-mode .hero{
+
+background:
+
+linear-gradient(
+180deg,
+#172554 0%,
+#0f172a 100%
+);
+
+}
+
+body.dark-mode .hero h1{
+
+color:#f8fafc;
+
+}
+
+body.dark-mode .hero h1 span{
+
+color:#60a5fa;
+
+}
+
+body.dark-mode .hero p{
+
+color:#cbd5e1;
+
+}
+
+
+/* ================= DARK FEATURES ================= */
+
+body.dark-mode .features{
+
+background:#111827;
+
+}
+
+body.dark-mode .section-title h2{
+
+color:#f8fafc;
+
+}
+
+body.dark-mode .section-title p{
+
+color:#94a3b8;
+
+}
+
+body.dark-mode .feature{
+
+background:#1e293b;
+
+border-color:#334155;
+
+}
+
+body.dark-mode .feature h3{
+
+color:#f8fafc;
+
+}
+
+body.dark-mode .feature p{
+
+color:#cbd5e1;
+
+}
+
+body.dark-mode .feature:hover{
+
+box-shadow:
+0 10px 25px rgba(0,0,0,.30);
+
+}
+
+
+/* ================= DARK HOW IT WORKS ================= */
+
+body.dark-mode .how{
+
+background:#0f172a;
+
+}
+
+body.dark-mode .step h3{
+
+color:#f8fafc;
+
+}
+
+body.dark-mode .step p{
+
+color:#cbd5e1;
+
+}
+
+
+/* ================= DARK CTA ================= */
+
+body.dark-mode .cta{
+
+background:#1e3a8a;
+
+}
+
+
+/* ================= DARK FOOTER ================= */
+
+body.dark-mode footer{
+
+background:#020617;
+
+color:#94a3b8;
+
+}
+
 
 /* ================= MOBILE ================= */
 
@@ -425,6 +758,110 @@ padding:55px 6%;
 
 }
 
+
+/* Mobile navigation */
+
+.navbar{
+
+gap:10px;
+
+}
+
+.logo{
+
+font-size:16px;
+
+}
+
+.nav-actions{
+
+gap:6px;
+
+}
+
+.theme-toggle{
+
+padding:9px 10px;
+
+font-size:13px;
+
+}
+
+.nav-btn{
+
+padding:9px 12px;
+
+font-size:13px;
+
+}
+
+}
+
+
+/* ================= SMALL MOBILE ================= */
+
+@media(max-width:480px){
+
+.navbar{
+
+align-items:center;
+
+}
+
+.logo{
+
+font-size:14px;
+
+}
+
+.theme-toggle{
+
+font-size:0;
+
+padding:9px 11px;
+
+}
+
+.theme-toggle::first-letter{
+
+font-size:16px;
+
+}
+
+.nav-btn{
+
+font-size:12px;
+
+padding:9px 10px;
+
+}
+
+.hero h1{
+
+font-size:32px;
+
+}
+
+.hero p{
+
+font-size:16px;
+
+}
+
+}
+
+
+/* ================= ACCESSIBILITY ================= */
+
+.theme-toggle:focus-visible,
+.nav-btn:focus-visible,
+.hero-btn:focus-visible,
+.cta-btn:focus-visible{
+
+outline:3px solid #60a5fa;
+
+outline-offset:3px;
+
 }
 
 </style>
@@ -445,12 +882,28 @@ padding:55px 6%;
 
 </div>
 
+
+<div class="nav-actions">
+
+<button
+id="themeToggle"
+class="theme-toggle"
+type="button"
+onclick="toggleTheme()"
+aria-label="Switch between dark and light mode"
+>
+🌙 Dark
+</button>
+
+
 <a
 href="app.html"
 class="nav-btn"
 >
 Launch computation
 </a>
+
+</div>
 
 </nav>
 
@@ -733,13 +1186,105 @@ Launch PAYE computation
 
 <footer>
 
-PAYE computation • Payroll Processing • Rent Relief
+PAYE Calculation • Payroll Processing • Rent Relief
 
 <br>
 
-© 2026 Nigeria PAYE computation
+© 2026 Nigeria PAYE Calculator
+
+<br><br>
+
+Built by <strong>Mudris Tech Solution</strong>
 
 </footer>
+
+
+<!-- =========================================================
+     THEME SYSTEM
+     ========================================================= -->
+
+<script>
+
+/* ================= APPLY THEME ================= */
+
+function applyTheme(theme){
+
+if(theme === "dark"){
+
+document.body.classList.add("dark-mode");
+
+}else{
+
+document.body.classList.remove("dark-mode");
+
+}
+
+
+/* Update button */
+
+const button =
+document.getElementById("themeToggle");
+
+if(button){
+
+button.textContent =
+theme === "dark"
+? "☀️ Light"
+: "🌙 Dark";
+
+button.setAttribute(
+"aria-label",
+theme === "dark"
+? "Switch to light mode"
+: "Switch to dark mode"
+);
+
+}
+
+}
+
+
+/* ================= TOGGLE THEME ================= */
+
+function toggleTheme(){
+
+const currentTheme =
+localStorage.getItem("paye-theme") || "light";
+
+
+const newTheme =
+currentTheme === "dark"
+? "light"
+: "dark";
+
+
+/* Save preference */
+
+localStorage.setItem(
+"paye-theme",
+newTheme
+);
+
+
+/* Apply theme */
+
+applyTheme(newTheme);
+
+}
+
+
+/* ================= LOAD SAVED THEME ================= */
+
+(function(){
+
+const savedTheme =
+localStorage.getItem("paye-theme") || "light";
+
+applyTheme(savedTheme);
+
+})();
+
+</script>
 
 
 </body>
