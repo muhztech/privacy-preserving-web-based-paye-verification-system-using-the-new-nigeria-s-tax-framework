@@ -1,515 +1,1468 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
+
 <title>Nigeria PAYE computation</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1"
+>
 
 <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link
+href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+rel="stylesheet"
+>
+
 
 <style>
 
+/* =========================================================
+   THEME VARIABLES
+   ========================================================= */
+
 :root{
+
 --primary:#1E40AF;
+
 --primary-hover:#3B82F6;
+
 --accent:#10B981;
+
 --warning:#F59E0B;
+
 --danger:#EF4444;
+
 --bg-main:#F8FAFC;
+
 --bg-card:#FFFFFF;
+
 --bg-soft:#F1F5F9;
+
 --text-main:#1F2937;
+
 --text-muted:#6B7280;
+
+--border:#E5E7EB;
+
 }
 
+
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+
 *{
+
 box-sizing:border-box;
+
 }
 
 body{
+
 font-family:'Inter',sans-serif;
+
 margin:0;
+
 background:var(--bg-main);
+
 color:var(--text-main);
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease;
+
 }
 
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+
 .nav{
+
 display:flex;
+
 justify-content:space-between;
+
 align-items:center;
+
 padding:16px 8%;
+
 background:var(--bg-card);
+
 box-shadow:0 2px 10px rgba(0,0,0,.05);
+
+transition:
+
+background-color .25s ease,
+
+box-shadow .25s ease;
+
 }
 
 .logo{
+
 font-weight:700;
+
 font-size:18px;
+
+transition:color .25s ease;
+
 }
 
 .back{
+
 text-decoration:none;
+
 color:var(--primary);
+
 font-weight:600;
+
+transition:color .25s ease;
+
 }
+
+
+/* =========================================================
+   NAVIGATION ACTIONS
+   ========================================================= */
+
+.nav-actions{
+
+display:flex;
+
+align-items:center;
+
+gap:10px;
+
+}
+
+
+/* =========================================================
+   THEME TOGGLE
+   ========================================================= */
+
+.theme-toggle{
+
+background:#F1F5F9;
+
+color:#1F2937;
+
+border:none;
+
+padding:9px 14px;
+
+border-radius:9px;
+
+cursor:pointer;
+
+font-family:inherit;
+
+font-size:14px;
+
+font-weight:600;
+
+margin:0;
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease,
+
+transform .2s ease;
+
+}
+
+.theme-toggle:hover{
+
+background:#E2E8F0;
+
+transform:translateY(-1px);
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
 
 .dashboard{
+
 display:grid;
+
 grid-template-columns:260px 1fr;
+
 min-height:100vh;
+
 }
 
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
 .sidebar{
+
 background:var(--bg-card);
-border-right:1px solid #e5e7eb;
+
+border-right:1px solid var(--border);
+
 padding:20px;
+
+transition:
+
+background-color .25s ease,
+
+border-color .25s ease;
+
 }
 
 .menu{
+
 margin-top:20px;
+
 }
 
 .menu div{
+
 padding:10px;
+
 border-radius:8px;
+
 cursor:pointer;
+
 margin-bottom:8px;
-transition:.2s;
+
+transition:
+
+background-color .2s ease,
+
+color .2s ease;
+
 }
 
 .menu div:hover{
+
 background:var(--bg-soft);
+
 }
 
 .menu .active{
+
 background:var(--primary);
+
 color:white;
+
 }
 
+
+/* =========================================================
+   MAIN CONTENT
+   ========================================================= */
+
 .main{
+
 padding:30px;
+
+transition:background-color .25s ease;
+
 }
 
 .tab-content{
+
 display:none;
+
 }
 
 .tab-content.active{
+
 display:block;
+
 }
+
+
+/* =========================================================
+   CARD
+   ========================================================= */
 
 .card{
+
 background:var(--bg-card);
+
 padding:24px;
+
 border-radius:16px;
+
 box-shadow:0 10px 25px rgba(0,0,0,.06);
+
 margin-bottom:20px;
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease,
+
+box-shadow .25s ease;
+
 }
 
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
 button{
+
 background:var(--primary);
+
 border:none;
+
 color:white;
+
 padding:12px 16px;
+
 border-radius:10px;
+
 cursor:pointer;
+
 margin-top:12px;
-transition:.2s;
+
+transition:
+
+background-color .2s ease,
+
+transform .2s ease;
+
 font-weight:600;
+
 }
 
 button:hover{
+
 background:var(--primary-hover);
+
 }
 
 button.camera{
+
 background:var(--accent);
+
 }
 
 button.camera:hover{
+
 background:#059669;
+
 }
 
 button.template{
+
 background:#6366F1;
+
 }
 
 button.template:hover{
+
 background:#4F46E5;
+
 }
 
 button.danger{
+
 background:#DC2626;
+
 }
 
 button.danger:hover{
+
 background:#B91C1C;
+
 }
+
+
+/* =========================================================
+   INPUTS
+   ========================================================= */
 
 input{
+
 width:100%;
+
 padding:10px;
+
 margin-top:8px;
+
 border-radius:8px;
-border:1px solid #e5e7eb;
+
+border:1px solid var(--border);
+
 font-size:14px;
+
+background:var(--bg-card);
+
+color:var(--text-main);
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease,
+
+border-color .25s ease;
+
 }
+
+input::placeholder{
+
+color:#9CA3AF;
+
+}
+
+input:focus{
+
+outline:none;
+
+border-color:var(--primary);
+
+box-shadow:0 0 0 3px rgba(30,64,175,.10);
+
+}
+
+
+/* =========================================================
+   RESULT
+   ========================================================= */
 
 .result{
+
 margin-top:15px;
+
 background:var(--bg-soft);
+
 padding:14px;
+
 border-radius:10px;
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease;
+
 }
 
+
+/* =========================================================
+   RENT RELIEF
+   ========================================================= */
+
 .relief{
-background:#eef6ff;
+
+background:#EEF6FF;
+
 padding:20px;
+
 border-radius:12px;
+
 margin-top:15px;
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease;
+
 }
 
 .relief h3{
+
 margin-top:0;
+
 }
 
+
+/* =========================================================
+   FORM
+   ========================================================= */
+
 .form-group{
+
 margin-top:15px;
+
 }
 
 .checkbox{
+
 display:flex;
+
 align-items:center;
+
 gap:10px;
+
 margin-top:10px;
+
 }
 
 .checkbox input{
+
 width:auto;
+
 margin-top:0;
+
 }
 
+
+/* =========================================================
+   STATUS MESSAGES
+   ========================================================= */
+
 .success{
+
 background:#ECFDF5;
+
 color:#047857;
+
 padding:10px;
+
 border-radius:8px;
+
 }
 
 .warning{
+
 background:#FFFBEB;
+
 color:#92400E;
+
 padding:10px;
+
 border-radius:8px;
+
 }
 
 .error{
+
 background:#FEF2F2;
+
 color:#991B1B;
+
 padding:10px;
+
 border-radius:8px;
+
 }
 
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
 table{
+
 width:100%;
+
 border-collapse:collapse;
+
 margin-top:15px;
+
+color:var(--text-main);
+
+transition:
+
+color .25s ease;
+
 }
 
 th{
+
 background:var(--bg-soft);
+
 text-align:left;
+
 }
 
-th,td{
-border:1px solid #e5e7eb;
+th,
+td{
+
+border:1px solid var(--border);
+
 padding:8px;
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease,
+
+border-color .25s ease;
+
 }
 
 tr:hover{
+
 background:#E2E8F0;
+
 }
+
+
+/* =========================================================
+   TEMPLATE NOTE
+   ========================================================= */
 
 .template-note{
+
 margin-top:15px;
+
 color:var(--text-muted);
+
 font-size:13px;
+
 line-height:1.6;
+
 }
 
-/* ================= CAMERA SCANNER ================= */
+
+/* =========================================================
+   CAMERA SCANNER
+   ========================================================= */
 
 .camera-modal{
+
 display:none;
+
 position:fixed;
+
 inset:0;
+
 background:#000;
+
 z-index:9999;
+
 overflow:hidden;
+
 }
 
 .camera-modal.active{
+
 display:flex;
+
 flex-direction:column;
+
 }
 
 .camera-header{
+
 height:60px;
+
 background:rgba(0,0,0,.75);
+
 color:white;
+
 display:flex;
+
 align-items:center;
+
 justify-content:space-between;
+
 padding:0 18px;
+
 z-index:2;
+
 }
 
 .camera-title{
+
 font-size:16px;
+
 font-weight:600;
+
 }
 
 .camera-close{
+
 background:#DC2626;
+
 padding:8px 14px;
+
 margin:0;
+
 border-radius:8px;
+
 }
 
 .camera-view{
+
 position:relative;
+
 flex:1;
+
 display:flex;
+
 align-items:center;
+
 justify-content:center;
+
 overflow:hidden;
+
 background:#000;
+
 }
 
 #cameraVideo{
+
 width:100%;
+
 height:100%;
+
 object-fit:cover;
+
 display:block;
+
 }
 
 .scanner-overlay{
+
 position:absolute;
+
 inset:0;
+
 pointer-events:none;
+
 display:flex;
+
 align-items:center;
+
 justify-content:center;
+
 }
 
 .scanner-box{
+
 width:88%;
+
 max-width:700px;
+
 height:58%;
+
 border:3px solid #10B981;
+
 border-radius:12px;
+
 box-shadow:
+
 0 0 0 9999px rgba(0,0,0,.40),
+
 0 0 20px rgba(16,185,129,.8);
+
 position:relative;
+
 }
 
 .scanner-corners{
+
 position:absolute;
+
 inset:0;
+
 border-radius:12px;
+
 }
 
 .scanner-message{
+
 position:absolute;
+
 bottom:-55px;
+
 left:50%;
+
 transform:translateX(-50%);
+
 width:max-content;
+
 max-width:90vw;
+
 background:rgba(0,0,0,.75);
+
 color:white;
+
 padding:9px 15px;
+
 border-radius:20px;
+
 font-size:13px;
+
 text-align:center;
+
 }
 
 .camera-footer{
+
 background:rgba(0,0,0,.85);
+
 padding:15px;
+
 display:flex;
+
 justify-content:center;
+
 gap:12px;
+
 z-index:2;
+
 }
 
 .capture-button{
+
 width:68px;
+
 height:68px;
+
 border-radius:50%;
+
 background:white;
+
 border:6px solid #10B981;
+
 padding:0;
+
 margin:0;
+
 box-shadow:0 0 15px rgba(255,255,255,.4);
+
 }
 
 .capture-button:hover{
+
 background:#f3f4f6;
+
 }
 
 .camera-status{
+
 position:absolute;
+
 top:75px;
+
 left:50%;
+
 transform:translateX(-50%);
+
 background:rgba(0,0,0,.7);
+
 color:white;
+
 padding:8px 15px;
+
 border-radius:20px;
+
 font-size:13px;
+
 z-index:3;
+
 display:none;
+
 }
 
-/* ================= RESPONSIVE ================= */
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+footer{
+
+background:#111827;
+
+color:#9ca3af;
+
+text-align:center;
+
+padding:25px 8%;
+
+font-size:13px;
+
+margin-top:30px;
+
+transition:
+
+background-color .25s ease,
+
+color .25s ease;
+
+}
+
+footer strong{
+
+color:white;
+
+}
+
+
+/* =========================================================
+   DARK MODE
+   ========================================================= */
+
+body.dark-mode{
+
+--primary:#60A5FA;
+
+--primary-hover:#93C5FD;
+
+--bg-main:#0F172A;
+
+--bg-card:#111827;
+
+--bg-soft:#1E293B;
+
+--text-main:#E5E7EB;
+
+--text-muted:#94A3B8;
+
+--border:#334155;
+
+color:#E5E7EB;
+
+}
+
+
+/* =========================================================
+   DARK NAVIGATION
+   ========================================================= */
+
+body.dark-mode .nav{
+
+background:#111827;
+
+box-shadow:
+0 2px 10px rgba(0,0,0,.35);
+
+}
+
+body.dark-mode .logo{
+
+color:#60A5FA;
+
+}
+
+body.dark-mode .back{
+
+color:#60A5FA;
+
+}
+
+
+/* =========================================================
+   DARK THEME BUTTON
+   ========================================================= */
+
+body.dark-mode .theme-toggle{
+
+background:#1E293B;
+
+color:#F8FAFC;
+
+}
+
+body.dark-mode .theme-toggle:hover{
+
+background:#334155;
+
+}
+
+
+/* =========================================================
+   DARK SIDEBAR
+   ========================================================= */
+
+body.dark-mode .sidebar{
+
+background:#111827;
+
+border-right-color:#334155;
+
+}
+
+body.dark-mode .menu div:hover{
+
+background:#1E293B;
+
+}
+
+
+/* =========================================================
+   DARK CARDS
+   ========================================================= */
+
+body.dark-mode .card{
+
+background:#111827;
+
+box-shadow:
+0 10px 25px rgba(0,0,0,.25);
+
+}
+
+
+/* =========================================================
+   DARK INPUTS
+   ========================================================= */
+
+body.dark-mode input{
+
+background:#1E293B;
+
+color:#F8FAFC;
+
+border-color:#475569;
+
+}
+
+body.dark-mode input::placeholder{
+
+color:#94A3B8;
+
+}
+
+body.dark-mode input:focus{
+
+border-color:#60A5FA;
+
+box-shadow:
+0 0 0 3px rgba(96,165,250,.12);
+
+}
+
+
+/* =========================================================
+   DARK RESULT
+   ========================================================= */
+
+body.dark-mode .result{
+
+background:#1E293B;
+
+color:#E5E7EB;
+
+}
+
+
+/* =========================================================
+   DARK RENT RELIEF
+   ========================================================= */
+
+body.dark-mode .relief{
+
+background:#172554;
+
+color:#E5E7EB;
+
+}
+
+
+/* =========================================================
+   DARK TABLE
+   ========================================================= */
+
+body.dark-mode table{
+
+color:#E5E7EB;
+
+}
+
+body.dark-mode th{
+
+background:#334155;
+
+color:#F8FAFC;
+
+}
+
+body.dark-mode th,
+body.dark-mode td{
+
+border-color:#475569;
+
+}
+
+body.dark-mode tr:hover{
+
+background:#334155;
+
+}
+
+
+/* =========================================================
+   DARK TEMPLATE NOTE
+   ========================================================= */
+
+body.dark-mode .template-note{
+
+color:#94A3B8;
+
+}
+
+
+/* =========================================================
+   DARK FOOTER
+   ========================================================= */
+
+body.dark-mode footer{
+
+background:#020617;
+
+color:#94A3B8;
+
+}
+
+body.dark-mode footer strong{
+
+color:#F8FAFC;
+
+}
+
+
+/* =========================================================
+   DARK STATUS BOXES
+   ========================================================= */
+
+body.dark-mode .success{
+
+background:#064E3B;
+
+color:#A7F3D0;
+
+}
+
+body.dark-mode .warning{
+
+background:#78350F;
+
+color:#FDE68A;
+
+}
+
+body.dark-mode .error{
+
+background:#7F1D1D;
+
+color:#FECACA;
+
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
 
 @media(max-width:768px){
 
 .nav{
+
 padding:14px 5%;
+
 }
 
 .logo{
+
 font-size:16px;
+
+}
+
+.nav-actions{
+
+gap:6px;
+
 }
 
 .dashboard{
+
 grid-template-columns:1fr;
+
 }
 
 .sidebar{
+
 border-right:none;
-border-bottom:1px solid #e5e7eb;
+
+border-bottom:1px solid var(--border);
+
 padding:12px;
+
 }
 
 .sidebar h3{
+
 display:none;
+
 }
 
 .menu{
+
 margin-top:0;
+
 display:flex;
+
 gap:8px;
+
 }
 
 .menu div{
+
 flex:1;
+
 margin-bottom:0;
+
 text-align:center;
+
 font-size:13px;
+
 }
 
 .main{
+
 padding:15px;
+
 }
 
 .card{
+
 padding:18px;
+
 }
 
 .scanner-box{
+
 width:92%;
+
 height:55%;
+
 }
 
 .scanner-message{
+
 font-size:12px;
-}
 
 }
 
-footer{
-background:#111827;
-color:#9ca3af;
-text-align:center;
-padding:25px 8%;
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+   ========================================================= */
+
+@media(max-width:480px){
+
+.nav{
+
+gap:8px;
+
+}
+
+.logo{
+
+font-size:14px;
+
+}
+
+.nav-actions{
+
+gap:5px;
+
+}
+
+.theme-toggle{
+
+padding:9px 10px;
+
 font-size:13px;
-margin-top:30px;
+
 }
 
-footer strong{
-color:white;
+.back{
+
+font-size:13px;
+
+}
+
+}
+
+
+/* =========================================================
+   ACCESSIBILITY
+   ========================================================= */
+
+.theme-toggle:focus-visible{
+
+outline:3px solid #60A5FA;
+
+outline-offset:3px;
+
+}
+
+button:focus-visible{
+
+outline:3px solid #60A5FA;
+
+outline-offset:3px;
+
+}
+
+a:focus-visible{
+
+outline:3px solid #60A5FA;
+
+outline-offset:3px;
+
 }
 
 </style>
+
 </head>
+
 
 <body>
 
-<!-- ================= NAVBAR ================= -->
+
+<!-- =========================================================
+     NAVBAR
+     ========================================================= -->
 
 <div class="nav">
 
+
 <div class="logo">
+
 🇳🇬 PAYE computation
+
 </div>
 
-<a href="index.html" class="back">
+
+<div class="nav-actions">
+
+
+<button
+id="themeToggle"
+class="theme-toggle"
+type="button"
+onclick="toggleTheme()"
+aria-label="Switch to dark mode"
+>
+🌙 Dark
+</button>
+
+
+<a
+href="index.html"
+class="back"
+>
 ← Back to Home
 </a>
 
+
 </div>
 
+</div>
+
+
+<!-- =========================================================
+     DASHBOARD
+     ========================================================= -->
 
 <div class="dashboard">
 
-<!-- ================= SIDEBAR ================= -->
+
+<!-- =========================================================
+     SIDEBAR
+     ========================================================= -->
 
 <div class="sidebar">
 
-<h3>Tools</h3>
+
+<h3>
+
+Tools
+
+</h3>
+
 
 <div class="menu">
 
-<div class="active" onclick="openTab('computation',this)">
+
+<div
+class="active"
+onclick="openTab('computation',this)"
+>
+
 Payslip computation
+
 </div>
 
-<div onclick="openTab('bulk',this)">
+
+<div
+onclick="openTab('bulk',this)"
+>
+
 Payroll Excel computation
-</div>
 
 </div>
 
+
 </div>
 
 
-<!-- ================= MAIN ================= -->
+</div>
+
+
+<!-- =========================================================
+     MAIN
+     ========================================================= -->
 
 <div class="main">
 
 
-<!-- ================= PAYSLIP ================= -->
+<!-- =========================================================
+     PAYSLIP COMPUTATION
+     ========================================================= -->
 
-<div id="computation" class="tab-content active">
+<div
+id="computation"
+class="tab-content active"
+>
+
 
 <div class="card">
 
-<h3>📷 Payslip PAYE computation</h3>
+
+<h3>
+📷 Payslip PAYE computation
+</h3>
+
 
 <p>
+
 Upload your payslip or scan it directly with your phone camera to compute PAYE under Nigeria's current tax reform.
+
 </p>
 
 
-<!-- Gallery / PDF -->
+<!-- =======================================================
+     GALLERY / PDF
+     ======================================================= -->
 
 <input
 type="file"
@@ -518,17 +1471,23 @@ accept="image/*,.pdf"
 >
 
 
-<!-- NEW LIVE CAMERA BUTTON -->
+<!-- =======================================================
+     LIVE CAMERA BUTTON
+     ======================================================= -->
 
 <button
 class="camera"
 onclick="openCameraScanner()"
 >
+
 📷 Scan Payslip with Camera
+
 </button>
 
 
-<!-- Hidden camera compatibility input -->
+<!-- =======================================================
+     HIDDEN CAMERA COMPATIBILITY INPUT
+     ======================================================= -->
 
 <input
 type="file"
@@ -539,46 +1498,76 @@ style="display:none"
 >
 
 
-<!-- Camera Preview Result -->
+<!-- =======================================================
+     CAMERA PREVIEW RESULT
+     ======================================================= -->
 
-<div id="previewContainer"></div>
+<div
+id="previewContainer"
+>
+</div>
 
 
-<button onclick="processSelectedFile()">
+<button
+onclick="processSelectedFile()"
+>
+
 Compute PAYE
+
 </button>
 
 
-<p id="loading"></p>
+<p
+id="loading"
+>
+</p>
+
 
 </div>
 
 
-<!-- ================= RENT RELIEF ================= -->
+<!-- =======================================================
+     RENT RELIEF
+     ======================================================= -->
 
 <div class="card relief">
 
-<h3>🏠 Rent Relief Declaration</h3>
+
+<h3>
+🏠 Rent Relief Declaration
+</h3>
+
 
 <div class="form-group checkbox">
+
 
 <input
 type="checkbox"
 id="rentCheck"
 >
 
-<label for="rentCheck">
+
+<label
+for="rentCheck"
+>
+
 I confirm I pay rent
+
 </label>
+
 
 </div>
 
 
 <div class="form-group">
 
+
 <label>
+
 Annual Rent
+
 </label>
+
 
 <input
 type="number"
@@ -586,26 +1575,39 @@ id="rentAmount"
 placeholder="Enter annual rent amount"
 >
 
+
 </div>
 
 
 <div class="form-group checkbox">
+
 
 <input
 type="checkbox"
 id="employerHouse"
 >
 
-<label for="employerHouse">
+
+<label
+for="employerHouse"
+>
+
 Employer provides accommodation
+
 </label>
+
 
 </div>
 
 
-<button onclick="applyRentRelief()">
+<button
+onclick="applyRentRelief()"
+>
+
 Apply Rent Relief
+
 </button>
+
 
 </div>
 
@@ -616,19 +1618,32 @@ class="result"
 >
 </div>
 
+
 </div>
 
 
-<!-- ================= EXCEL PAYROLL ================= -->
+<!-- =========================================================
+     EXCEL PAYROLL
+     ========================================================= -->
 
-<div id="bulk" class="tab-content">
+<div
+id="bulk"
+class="tab-content"
+>
+
 
 <div class="card">
 
-<h3>Payroll Excel computation</h3>
+
+<h3>
+Payroll Excel computation
+</h3>
+
 
 <p>
+
 Upload a payroll spreadsheet to compute PAYE for multiple employees under Nigeria's current tax reform.
+
 </p>
 
 
@@ -639,8 +1654,12 @@ accept=".xlsx"
 >
 
 
-<button onclick="processExcel()">
+<button
+onclick="processExcel()"
+>
+
 Compute Payroll
+
 </button>
 
 
@@ -648,48 +1667,78 @@ Compute Payroll
 class="template"
 onclick="downloadTemplate()"
 >
+
 Download Excel Template
+
 </button>
 
 
 <div class="template-note">
 
+
 <strong>
 Template Columns:
 </strong>
 
+
 <br>
+
 
 Employee Name
+
 <br>
+
 
 Gross Salary
+
 <br>
+
 
 Pension
+
 <br>
+
 
 NHF
+
 <br>
+
 
 NHIS
+
 <br>
 
+
 Rent
+
 <br>
+
 
 Employer Housing (Yes/No)
 
-<br><br>
 
-<strong>Rent relief:</strong>
+<br>
+<br>
+
+
+<strong>
+Rent relief:
+</strong>
+
+
+<br>
+
 
 If Rent is greater than zero and the employer does not provide accommodation, the system automatically applies the applicable rent relief.
+
 
 </div>
 
 
-<div id="excelPreview"></div>
+<div
+id="excelPreview"
+>
+</div>
 
 
 <button
@@ -697,42 +1746,59 @@ id="downloadBtn"
 onclick="downloadExcel()"
 style="display:none"
 >
+
 Download computed Excel
+
 </button>
 
-</div>
-
-</div>
-
-</div>
 
 </div>
 
 
-<!-- ================= CAMERA SCANNER ================= -->
+</div>
+
+
+</div>
+
+
+</div>
+
+
+<!-- =========================================================
+     CAMERA SCANNER
+     ========================================================= -->
 
 <div
 id="cameraModal"
 class="camera-modal"
 >
 
+
 <div class="camera-header">
 
+
 <div class="camera-title">
+
 📷 Payslip Camera Scanner
+
 </div>
+
 
 <button
 class="camera-close"
 onclick="closeCameraScanner()"
 >
+
 Close
+
 </button>
+
 
 </div>
 
 
 <div class="camera-view">
+
 
 <video
 id="cameraVideo"
@@ -746,28 +1812,40 @@ muted
 id="cameraStatus"
 class="camera-status"
 >
+
 Preparing camera...
+
 </div>
 
 
 <div class="scanner-overlay">
 
+
 <div class="scanner-box">
 
-<div class="scanner-corners"></div>
+
+<div class="scanner-corners">
+</div>
+
 
 <div class="scanner-message">
+
 Position the payslip inside the box and keep it steady
-</div>
 
 </div>
 
+
 </div>
+
+
+</div>
+
 
 </div>
 
 
 <div class="camera-footer">
+
 
 <button
 class="capture-button"
@@ -777,12 +1855,16 @@ title="Capture payslip"
 >
 </button>
 
-</div>
 
 </div>
 
 
-<!-- Hidden canvas used by JavaScript to capture the high-resolution frame -->
+</div>
+
+
+<!-- =========================================================
+     HIDDEN CAMERA CANVAS
+     ========================================================= -->
 
 <canvas
 id="cameraCanvas"
@@ -790,66 +1872,189 @@ style="display:none"
 ></canvas>
 
 
-<!-- ================= FOOTER ================= -->
+<!-- =========================================================
+     FOOTER
+     ========================================================= -->
 
 <footer>
 
+
 PAYE Calculation • Payroll Processing • Rent Relief
+
 
 <br>
 
+
 © 2026 Nigeria PAYE Calculator
+
 
 <br><br>
 
+
 Built by <strong>Mudris Tech Solution</strong>
+
 
 </footer>
 
+
+<!-- =========================================================
+     EXISTING MAIN JAVASCRIPT
+     ========================================================= -->
 
 <script src="script.js"></script>
 
 
 <script>
 
-/* ================= TAB SWITCH ================= */
+/* =========================================================
+   THEME SYSTEM
+   ========================================================= */
+
+
+/* ================= APPLY THEME ================= */
+
+function applyTheme(theme){
+
+if(theme === "dark"){
+
+document.body.classList.add("dark-mode");
+
+}else{
+
+document.body.classList.remove("dark-mode");
+
+}
+
+
+/* ================= UPDATE BUTTON ================= */
+
+const button =
+document.getElementById("themeToggle");
+
+
+if(button){
+
+button.textContent =
+theme === "dark"
+? "☀️ Light"
+: "🌙 Dark";
+
+
+button.setAttribute(
+"aria-label",
+theme === "dark"
+? "Switch to light mode"
+: "Switch to dark mode"
+);
+
+}
+
+}
+
+
+/* ================= TOGGLE THEME ================= */
+
+function toggleTheme(){
+
+const currentTheme =
+localStorage.getItem("paye-theme") || "light";
+
+
+const newTheme =
+currentTheme === "dark"
+? "light"
+: "dark";
+
+
+/* Save theme preference */
+
+localStorage.setItem(
+"paye-theme",
+newTheme
+);
+
+
+/* Apply theme */
+
+applyTheme(newTheme);
+
+}
+
+
+/* ================= LOAD SAVED THEME ================= */
+
+(function(){
+
+const savedTheme =
+localStorage.getItem("paye-theme") || "light";
+
+
+applyTheme(savedTheme);
+
+})();
+
+
+/* =========================================================
+   TAB SWITCH
+   ========================================================= */
 
 function openTab(id,el){
 
-document.querySelectorAll(".tab-content").forEach(t=>{
+document
+.querySelectorAll(".tab-content")
+.forEach(t=>{
 
 t.style.display="none";
+
 t.classList.remove("active");
 
 });
 
-document.getElementById(id).style.display="block";
-document.getElementById(id).classList.add("active");
+
+document
+.getElementById(id)
+.style.display="block";
 
 
-document.querySelectorAll(".menu div").forEach(m=>{
+document
+.getElementById(id)
+.classList.add("active");
+
+
+document
+.querySelectorAll(".menu div")
+.forEach(m=>{
 
 m.classList.remove("active");
 
 });
+
 
 el.classList.add("active");
 
 }
 
 
-/* ================= DOWNLOAD TEMPLATE ================= */
+/* =========================================================
+   DOWNLOAD TEMPLATE
+   ========================================================= */
 
 function downloadTemplate(){
 
 const headers = [
 
 "Employee Name",
+
 "Gross Salary",
+
 "Pension",
+
 "NHF",
+
 "NHIS",
+
 "Rent",
+
 "Employer Housing"
 
 ];
@@ -858,11 +2063,17 @@ const headers = [
 const exampleRow = [
 
 "John Doe",
+
 350000,
+
 28000,
+
 8750,
+
 5000,
+
 120000,
+
 "No"
 
 ];
@@ -870,8 +2081,11 @@ const exampleRow = [
 
 const worksheet =
 XLSX.utils.aoa_to_sheet([
+
 headers,
+
 exampleRow
+
 ]);
 
 
@@ -880,20 +2094,29 @@ XLSX.utils.book_new();
 
 
 XLSX.utils.book_append_sheet(
+
 workbook,
+
 worksheet,
+
 "Payroll"
+
 );
 
 
 XLSX.writeFile(
+
 workbook,
+
 "PAYE_Payroll_Template.xlsx"
+
 );
 
 }
 
 </script>
 
+
 </body>
+
 </html>
